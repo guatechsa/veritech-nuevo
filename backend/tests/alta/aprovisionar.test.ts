@@ -10,6 +10,8 @@ import { baseTemporal, configPruebas } from '../db/ayuda';
 import { crearEntornoDePrueba, EntornoDePrueba } from '../plataforma/ayuda';
 import { altaAprobada, CLAVE_ADMIN, tallerCreado } from './ayuda';
 
+const MIGRACIONES_DE_TALLER = fs.readdirSync(path.join(__dirname, '..', '..', '..', 'database', 'taller')).filter((n) => n.endsWith('.sql')).sort();
+
 let e: EntornoDePrueba;
 beforeAll(async () => {
   e = await crearEntornoDePrueba();
@@ -70,7 +72,7 @@ describe('creación de un taller', () => {
       const [roles] = await con.query<mysql.RowDataPacket[]>('SELECT COUNT(*) AS n FROM roles');
       expect(roles[0]?.['n']).toBe(8);
       const [mig] = await con.query<mysql.RowDataPacket[]>('SELECT archivo FROM migraciones_aplicadas');
-      expect(mig.map((m) => m['archivo'])).toEqual(['0001_base.sql']);
+      expect(mig.map((m) => m['archivo'])).toEqual(MIGRACIONES_DE_TALLER); // el taller nace con TODAS las migraciones de la carpeta
     });
   });
 
@@ -174,7 +176,7 @@ describe('creación de un taller', () => {
     try {
       const { aplicarMigraciones } = await import('../../src/db/migrador');
       const carpeta = path.join(__dirname, '..', '..', '..', 'database', 'taller');
-      expect((await aplicarMigraciones(b.config, b.base, carpeta)).aplicadas).toEqual(['0001_base.sql']);
+      expect((await aplicarMigraciones(b.config, b.base, carpeta)).aplicadas).toEqual(MIGRACIONES_DE_TALLER);
       expect((await aplicarMigraciones(b.config, b.base, carpeta)).aplicadas).toEqual([]);
     } finally {
       await b.borrar();

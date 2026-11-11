@@ -327,7 +327,7 @@ function AltasPorAtender({ altas, alCambiar }: { altas: AltaPorAtender[]; alCamb
 }
 
 function PestanaEmpresas({ planes, modulos }: { planes: Plan[]; modulos: Modulo[] }) {
-  const { puedeEscribir } = useSesion();
+  const { puedeEscribir, esSuperAdmin } = useSesion();
   const [datos, setDatos] = useState<ListaEmpresas | null>(null);
   const [buscar, setBuscar] = useState('');
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'error' | 'ok' }>({ texto: '', tipo: 'ok' });
@@ -341,6 +341,19 @@ function PestanaEmpresas({ planes, modulos }: { planes: Plan[]; modulos: Modulo[
     api.get<ListaEmpresas>(`/empresas${buscar.trim() ? `?buscar=${encodeURIComponent(buscar.trim())}` : ''}`).then(setDatos).catch((e: unknown) => setMensaje({ texto: e instanceof ErrorApi ? e.message : 'No se pudo cargar', tipo: 'error' }));
   }, [buscar]);
   useEffect(cargar, [cargar]);
+
+  /** "Entrar" (acceso de soporte): se abre la pestaña de inmediato (si no, el navegador la bloquea) y luego se le pone la dirección. */
+  const entrar = async (e: EmpresaFila): Promise<void> => {
+    const ventana = window.open('', '_blank');
+    try {
+      const r = await api.post<{ url: string }>(`/empresas/${e.id}/entrar`);
+      if (ventana) ventana.location.href = r.url;
+      else setMensaje({ texto: 'El navegador bloqueó la ventana nueva. Permita las ventanas emergentes e intente de nuevo.', tipo: 'error' });
+    } catch (err) {
+      ventana?.close();
+      setMensaje({ texto: err instanceof ErrorApi ? err.message : 'No se pudo abrir el taller', tipo: 'error' });
+    }
+  };
 
   const reactivar = async (e: EmpresaFila): Promise<void> => {
     if (!window.confirm(`¿Desea reactivar a ${e.nombre}?`)) return;
@@ -367,6 +380,7 @@ function PestanaEmpresas({ planes, modulos }: { planes: Plan[]; modulos: Modulo[
       etiqueta: 'Acciones',
       render: (e) => (
         <Acciones>
+          {esSuperAdmin && ['prueba', 'activa', 'pago_fallido', 'cancelada_con_acceso'].includes(e.estado) && <BotonAccion onClick={() => void entrar(e)}>Entrar</BotonAccion>}
           <BotonAccion onClick={() => setViendo(e.id)}>Detalle</BotonAccion>
           {puedeEscribir && e.estado === 'suspendida' && <BotonAccion onClick={() => void reactivar(e)}>Activar</BotonAccion>}
           {puedeEscribir && ['prueba', 'activa', 'pago_fallido', 'cancelada_con_acceso'].includes(e.estado) && <BotonAccion onClick={() => setSuspendiendo(e)}>Suspender</BotonAccion>}

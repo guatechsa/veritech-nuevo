@@ -56,6 +56,7 @@ export async function crearEntornoDePrueba(opciones: { limites?: Contexto['limit
     DOMINIO_TALLERES: 'taller.test',
     PAYPAL_WEBHOOK_ID: 'WH-PRUEBA',
     BORRADO_AUTOMATICO: opciones.borradoAutomatico ? 'true' : 'false',
+    TALLER_POR_ENCABEZADO: 'true',
   } as NodeJS.ProcessEnv);
   const pool = crearPool(base.config, base.base, 5);
   const paypal = new PaypalSimulado();
@@ -67,6 +68,7 @@ export async function crearEntornoDePrueba(opciones: { limites?: Contexto['limit
     limites: opciones.limites ?? { ingreso: 10000, recuperacion: 10000, registro: 10000 },
     pagos: paypal,
     ahora: () => (reloj.fijo ? new Date(reloj.fijo) : new Date()),
+    cacheEmpresaMs: 0,
     verificarSubdominio: async () => true,
     lanzarAlta: (id) => {
       altasLanzadas.push(id);
@@ -109,6 +111,7 @@ export async function crearEntornoDePrueba(opciones: { limites?: Contexto['limit
 
   /** Los talleres que las pruebas crean tienen su propia base (prefijo vtn_t_): se borran para no dejar basura. */
   const borrarBasesDeTalleres = async (): Promise<void> => {
+    await ctx.pools?.cerrarTodos();
     const bases = await filas<{ nombre_bd: string }>(pool, "SELECT nombre_bd FROM empresas WHERE nombre_bd LIKE 'vtn\_t\_%'");
     for (const b of bases) await borrarBaseTemporal(base.config, b.nombre_bd);
   };

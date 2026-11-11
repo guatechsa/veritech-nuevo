@@ -2,6 +2,7 @@ import express, { ErrorRequestHandler, Express, Request, Response } from 'expres
 import helmet from 'helmet';
 import { crearRutasPublicas } from './alta/rutas';
 import { ErrorApp } from './errores';
+import { crearRutasTaller } from './taller/rutas';
 import { Contexto } from './plataforma/contexto';
 import { crearRutasPlataforma } from './plataforma/rutas';
 import { APP_VERSION } from './version';
@@ -68,6 +69,7 @@ export function crearApp(dependencias: DependenciasApp): Express {
 
   if (dependencias.plataforma) {
     app.use('/api/plataforma', crearRutasPlataforma(dependencias.plataforma));
+    app.use('/api/taller', crearRutasTaller(dependencias.plataforma));
     app.use('/api', crearRutasPublicas(dependencias.plataforma));
   }
 

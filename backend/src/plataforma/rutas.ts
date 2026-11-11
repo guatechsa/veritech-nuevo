@@ -8,6 +8,10 @@ import { autenticar, cambiarContrasena, exigirRol, ingresar, restablecerContrase
 import { agenteDe, Contexto, ipDe } from './contexto';
 import { aprovisionarAlta } from '../alta/aprovisionar';
 import { conciliarEmpresa } from '../cobro/conciliacion';
+import { una } from '../db/consulta';
+import { ErrorConflicto, ErrorNoEncontrado } from '../errores';
+import { urlBaseDeTaller } from '../taller/auth';
+import { emitirTokenAcceso } from './soporte';
 import { actualizarEmpresa, cambiarEstadoEmpresa, detalleEmpresa, listarAltasPorAtender, listarEmpresas, obtenerEmpresa } from './empresas';
 import { actualizarPlan, listarModulos, listarPlanes } from './planes';
 import { obtenerIndicadores } from './stats';
@@ -111,6 +115,22 @@ export function crearRutasPlataforma(ctx: Contexto): Router {
   router.post('/empresas/:id/conciliar', requiereSesion, puedeEscribir, async (req, res) => {
     const r = await conciliarEmpresa(ctx, idDe(req), 'manual', { tipo: 'conciliacion_manual', usuarioId: req.usuarioPlataforma!.id });
     res.json({ success: true, data: r });
+  });
+
+  /**
+   * "Entrar" (acceso de soporte): emite el enlace de un solo uso y 60 segundos para abrir el taller como su administrador.
+   * Solo un super administrador; siempre queda auditado. Devuelve la dirección completa para abrirla en pestaña nueva.
+   */
+  router.post('/empresas/:id/entrar', requiereSesion, soloSuper, async (req, res) => {
+    const id = idDe(req);
+    const e = await una<{ slug: string; subdominio: string; contacto_correo: string | null }>(ctx.pool, 'SELECT slug, subdominio, contacto_correo FROM empresas WHERE id = ?', [id]);
+    if (!e) throw new ErrorNoEncontrado('Empresa no encontrada');
+    const acceso =
+      (e.contacto_correo ? await una<{ usuario_id: number }>(ctx.pool, 'SELECT usuario_id FROM directorio_acceso WHERE empresa_id = ? AND correo = ? AND activo = 1', [id, e.contacto_correo]) : null) ??
+      (await una<{ usuario_id: number }>(ctx.pool, 'SELECT usuario_id FROM directorio_acceso WHERE empresa_id = ? AND activo = 1 ORDER BY id LIMIT 1', [id]));
+    if (!acceso) throw new ErrorConflicto('Esta empresa todavía no tiene un usuario al que entrar');
+    const { token, venceEnSegundos } = await emitirTokenAcceso(ctx, req.usuarioPlataforma!, { empresaId: id, usuarioDestinoId: acceso.usuario_id }, origen(req));
+    res.json({ success: true, data: { url: `${urlBaseDeTaller(ctx, e)}/entrar-soporte?token=${token}`, vence_en_segundos: venceEnSegundos } });
   });
 
   router.get('/altas', requiereSesion, async (_req, res) => {

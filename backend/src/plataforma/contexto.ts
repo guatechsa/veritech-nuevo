@@ -26,6 +26,10 @@ export interface Contexto {
   ahora?: () => Date;
   /** Carpeta de migraciones de los talleres (por defecto la del repositorio). */
   carpetaTaller?: string;
+  /** Conexiones a las bases de los talleres (se crea sola al primer uso). */
+  pools?: import('../taller/pools').RegistroPools;
+  /** Cuánto se recuerda la ficha de una empresa en memoria (ms). Las pruebas lo ponen en 0. */
+  cacheEmpresaMs?: number;
   /** Cómo se pone en marcha la creación de un taller recién aprobado. Por defecto, en segundo plano; las pruebas la controlan. */
   lanzarAlta?: (altaId: number) => void;
 }

@@ -37,6 +37,11 @@ const esquema = z.object({
   PAYPAL_WEBHOOK_ID: textoOpcional,
   /** Borrado real de la base de un taller cerrado. Apagado hasta que Luis lo active. */
   BORRADO_AUTOMATICO: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  /**
+   * Permite indicar el taller con la cabecera `X-Taller` cuando la dirección no es <taller>.<dominio>. Solo para el sitio de
+   * pruebas (mientras los talleres no tengan su propia dirección). En producción va apagado: manda el nombre de la dirección.
+   */
+  TALLER_POR_ENCABEZADO: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   /** Quién recibe las alertas internas (alta fallida, correos agotados…). */
   CORREO_ALERTAS: z.string().email().default('soporte@guatech.lat'),
 });

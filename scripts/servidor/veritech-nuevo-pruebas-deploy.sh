@@ -38,6 +38,7 @@ echo "== dependencias, migraciones y reinicio"
 cd "$APP/backend"
 sudo -u $CUENTA npm ci --omit=dev --silent
 sudo -u $CUENTA node dist/cli/migrar.js plataforma
+sudo -u $CUENTA node dist/cli/migrar.js talleres
 if sudo -u $CUENTA $PM2 describe veritech-pruebas >/dev/null 2>&1; then
   sudo -u $CUENTA $PM2 restart veritech-pruebas --update-env >/dev/null
 else

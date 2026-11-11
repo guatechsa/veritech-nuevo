@@ -110,3 +110,62 @@ export function dinero(monto: number | null | undefined): string {
   if (monto === null || monto === undefined) return '—';
   return `US$ ${monto.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+export interface PagoFila {
+  paypal_transaccion_id: string;
+  fecha: string;
+  monto: number;
+  moneda: string;
+  estado: string;
+}
+
+export interface EventoSuscripcion {
+  id: number;
+  created_at: string;
+  tipo: string;
+  estado_antes: EstadoEmpresa | null;
+  estado_despues: EstadoEmpresa | null;
+  origen: 'aviso' | 'conciliacion' | 'manual' | 'sistema';
+  detalle: string | null;
+  usuario_nombre: string | null;
+}
+
+export interface FichaEmpresa {
+  empresa: EmpresaDetalle & {
+    paypal_suscripcion_id: string | null;
+    paypal_estado: string | null;
+    prueba_hasta: string | null;
+    gracia_hasta: string | null;
+    acceso_hasta: string | null;
+    proximo_cobro_en: string | null;
+    exportable_hasta: string | null;
+    borrado_programado_en: string | null;
+    ultima_conciliacion_en: string | null;
+    estado_desde: string | null;
+    suspension_origen: 'manual' | 'pago' | null;
+    subdominio_listo_en: string | null;
+    nombre_bd: string;
+  };
+  pagos: PagoFila[];
+  eventos: EventoSuscripcion[];
+  alta: { id: number; estado: string; intentos: number; error: string | null } | null;
+}
+
+export interface AltaPorAtender {
+  id: number;
+  slug: string;
+  nombre_taller: string;
+  admin_correo: string;
+  estado: 'aprobada' | 'error';
+  intentos: number;
+  error: string | null;
+  aprobada_en: string | null;
+  empresa_id: number | null;
+}
+
+export const ETIQUETA_ORIGEN: Record<EventoSuscripcion['origen'], string> = {
+  aviso: 'Aviso de PayPal',
+  conciliacion: 'Conciliación',
+  manual: 'Manual',
+  sistema: 'Calendario',
+};

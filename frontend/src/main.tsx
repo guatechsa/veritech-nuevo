@@ -4,6 +4,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import App from './App';
 import Panel from './admin/Panel';
 import { useFormatoTextoGlobal } from './hooks/useFormatoTextoGlobal';
+import Entrar from './publico/Entrar';
+import Registro from './publico/Registro';
 import './index.css';
 
 function Raiz() {
@@ -12,6 +14,8 @@ function Raiz() {
     <BrowserRouter>
       <Routes>
         <Route path="/admin/*" element={<Panel />} />
+        <Route path="/registro" element={<Registro />} />
+        <Route path="/entrar" element={<Entrar />} />
         <Route path="*" element={<App />} />
       </Routes>
     </BrowserRouter>

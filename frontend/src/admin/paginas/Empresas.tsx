@@ -8,7 +8,7 @@ import { fechaHoraLocal } from '../../utils/hora';
 import { api, ErrorApi } from '../api';
 import Tabla, { Columna } from '../componentes/Tabla';
 import { useSesion } from '../Sesion';
-import { dinero, EmpresaDetalle, EmpresaFila, ETIQUETA_ESTADO, ListaEmpresas, Modulo, Plan } from '../tipos';
+import { AltaPorAtender, dinero, EmpresaDetalle, EmpresaFila, ETIQUETA_ESTADO, ETIQUETA_ORIGEN, FichaEmpresa, ListaEmpresas, Modulo, Plan } from '../tipos';
 
 function Aviso({ mensaje, tipo }: { mensaje: string; tipo: 'error' | 'ok' }) {
   if (!mensaje) return null;
@@ -123,24 +123,230 @@ function EditarEmpresa({ id, planes, modulos, alCerrar, alGuardar }: { id: numbe
   );
 }
 
+function Fila({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  return (
+    <div className="flex justify-between gap-3 border-b border-gray-100 py-1 text-sm">
+      <dt className="text-gray-500">{etiqueta}</dt>
+      <dd className="text-right font-medium text-gray-900">{valor}</dd>
+    </div>
+  );
+}
+
+function FichaDeEmpresa({ id, alCerrar, alCambiar }: { id: number; alCerrar: () => void; alCambiar: () => void }) {
+  const { puedeEscribir } = useSesion();
+  const [ficha, setFicha] = useState<FichaEmpresa | null>(null);
+  const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'error' | 'ok' }>({ texto: '', tipo: 'ok' });
+  const [trabajando, setTrabajando] = useState(false);
+
+  const cargar = useCallback(() => {
+    api.get<FichaEmpresa>(`/empresas/${id}/detalle`).then(setFicha).catch((e: unknown) => setMensaje({ texto: e instanceof ErrorApi ? e.message : 'No se pudo cargar', tipo: 'error' }));
+  }, [id]);
+  useEffect(cargar, [cargar]);
+
+  const conciliar = async (): Promise<void> => {
+    setTrabajando(true);
+    setMensaje({ texto: '', tipo: 'ok' });
+    try {
+      const r = await api.post<{ omitida?: string; estado?: string; cambioEstado?: boolean; pagosNuevos?: number }>(`/empresas/${id}/conciliar`);
+      setMensaje({
+        texto: r.omitida ? `No se concilió: ${r.omitida}.` : `Conciliada con PayPal. ${r.cambioEstado ? 'El estado cambió.' : 'El estado no cambió.'} Pagos nuevos: ${r.pagosNuevos ?? 0}.`,
+        tipo: 'ok',
+      });
+      cargar();
+      alCambiar();
+    } catch (err) {
+      setMensaje({ texto: err instanceof ErrorApi ? err.message : 'No se pudo conciliar', tipo: 'error' });
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  const e = ficha?.empresa;
+  const fecha = (v: string | null | undefined): string => fechaHoraLocal(v);
+  return (
+    <Modal onClose={alCerrar} title={e ? `Detalle: ${e.nombre}` : 'Detalle de la empresa'} size="xl">
+      {!e || !ficha ? (
+        <Aviso mensaje={mensaje.texto || 'Cargando…'} tipo={mensaje.texto ? mensaje.tipo : 'ok'} />
+      ) : (
+        <div className="space-y-5">
+          <Aviso mensaje={mensaje.texto} tipo={mensaje.tipo} />
+          {ficha.alta && ficha.alta.estado === 'error' && <Aviso mensaje={`El alta falló ${ficha.alta.intentos} veces: ${ficha.alta.error ?? ''}`} tipo="error" />}
+          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
+            <section>
+              <h3 className="mb-1 text-sm font-bold text-gray-900">Estado</h3>
+              <dl>
+                <Fila etiqueta="Estado" valor={ETIQUETA_ESTADO[e.estado].texto} />
+                <Fila etiqueta="Desde" valor={fecha(e.estado_desde)} />
+                {e.suspension_origen && <Fila etiqueta="Suspendida por" valor={e.suspension_origen === 'manual' ? 'GUATECH (a mano)' : 'Falta de pago'} />}
+                <Fila etiqueta="Prueba hasta" valor={fecha(e.prueba_hasta)} />
+                <Fila etiqueta="Próximo cobro" valor={fecha(e.proximo_cobro_en)} />
+                <Fila etiqueta="Gracia de pago hasta" valor={fecha(e.gracia_hasta)} />
+                <Fila etiqueta="Acceso hasta" valor={fecha(e.acceso_hasta)} />
+                <Fila etiqueta="Exportar datos hasta" valor={fecha(e.exportable_hasta)} />
+                <Fila etiqueta="Borrado programado" valor={fecha(e.borrado_programado_en)} />
+              </dl>
+            </section>
+            <section>
+              <h3 className="mb-1 text-sm font-bold text-gray-900">Suscripción y taller</h3>
+              <dl>
+                <Fila etiqueta="Cobro" valor={e.cobro_por_contrato ? 'Por contrato' : 'PayPal'} />
+                <Fila etiqueta="Suscripción de PayPal" valor={e.paypal_suscripcion_id ?? '—'} />
+                <Fila etiqueta="Estado en PayPal" valor={e.paypal_estado ?? '—'} />
+                <Fila etiqueta="Última conciliación" valor={fecha(e.ultima_conciliacion_en)} />
+                <Fila etiqueta="Cuota mensual" valor={dinero(e.cuota_mensual)} />
+                <Fila etiqueta="Dirección" valor={e.subdominio} />
+                <Fila etiqueta="Dirección respondió" valor={fecha(e.subdominio_listo_en)} />
+                <Fila etiqueta="Base de datos" valor={e.nombre_bd} />
+              </dl>
+              {puedeEscribir && e.paypal_suscripcion_id && !e.cobro_por_contrato && (
+                <div className="mt-3">
+                  <Button variant="outline" size="sm" disabled={trabajando} onClick={() => void conciliar()}>
+                    {trabajando ? 'Conciliando…' : 'Conciliar ahora'}
+                  </Button>
+                </div>
+              )}
+            </section>
+          </div>
+          <section>
+            <h3 className="mb-1 text-sm font-bold text-gray-900">Pagos</h3>
+            {ficha.pagos.length === 0 ? (
+              <p className="text-sm text-gray-500">Todavía no hay pagos registrados.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-100 text-left text-xs uppercase text-gray-600">
+                    <th className="px-2 py-1">Fecha</th>
+                    <th className="px-2 py-1">Referencia</th>
+                    <th className="px-2 py-1">Estado</th>
+                    <th className="px-2 py-1 text-right">Monto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ficha.pagos.map((p) => (
+                    <tr key={p.paypal_transaccion_id} className="border-b border-gray-100">
+                      <td className="px-2 py-1">{fecha(p.fecha)}</td>
+                      <td className="px-2 py-1">{p.paypal_transaccion_id}</td>
+                      <td className="px-2 py-1">{p.estado}</td>
+                      <td className="px-2 py-1 text-right">{p.moneda} {p.monto.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+          <section>
+            <h3 className="mb-1 text-sm font-bold text-gray-900">Eventos de la suscripción</h3>
+            {ficha.eventos.length === 0 ? (
+              <p className="text-sm text-gray-500">Todavía no hay eventos.</p>
+            ) : (
+              <ul className="space-y-1 text-sm">
+                {ficha.eventos.map((v) => (
+                  <li key={v.id} className="border-b border-gray-100 pb-1">
+                    <span className="text-gray-500">{fecha(v.created_at)}</span> · <span className="font-medium">{ETIQUETA_ORIGEN[v.origen]}</span>
+                    {v.estado_despues && (
+                      <>
+                        {' '}· {v.estado_antes ? ETIQUETA_ESTADO[v.estado_antes].texto : '—'} → <strong>{ETIQUETA_ESTADO[v.estado_despues].texto}</strong>
+                      </>
+                    )}
+                    {v.detalle && <span className="block text-xs text-gray-600">{v.detalle}{v.usuario_nombre ? ` (${v.usuario_nombre})` : ''}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <div className="flex justify-end border-t pt-3">
+            <Button variant="outline" onClick={alCerrar}>Cerrar</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function SuspenderEmpresa({ empresa, alCerrar, alListo }: { empresa: EmpresaFila; alCerrar: () => void; alListo: () => void }) {
+  const [motivo, setMotivo] = useState('');
+  const [error, setError] = useState('');
+  const enviar = async (ev: FormEvent): Promise<void> => {
+    ev.preventDefault();
+    setError('');
+    try {
+      await api.post(`/empresas/${empresa.id}/estado`, { estado: 'suspendida', motivo });
+      alListo();
+    } catch (err) {
+      setError(err instanceof ErrorApi ? err.message : 'No se pudo suspender');
+    }
+  };
+  return (
+    <Modal onClose={alCerrar} title={`Suspender a ${empresa.nombre}`} size="md">
+      <form onSubmit={enviar} className="space-y-3">
+        <Aviso mensaje={error} tipo="error" />
+        <p className="text-sm text-gray-700">La empresa dejará de poder entrar al sistema. Una suspensión hecha a mano no se levanta sola: hay que activarla desde aquí.</p>
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium text-gray-700">Motivo (obligatorio)</span>
+          <input className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" value={motivo} onChange={(e) => setMotivo(e.target.value)} required maxLength={300} autoFocus />
+        </label>
+        <div className="flex justify-end gap-2 border-t pt-3">
+          <Button variant="outline" onClick={alCerrar}>Cancelar</Button>
+          <Button type="submit" variant="danger">Suspender</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AltasPorAtender({ altas, alCambiar }: { altas: AltaPorAtender[]; alCambiar: () => void }) {
+  const { puedeEscribir } = useSesion();
+  const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'error' | 'ok' }>({ texto: '', tipo: 'ok' });
+  if (altas.length === 0) return null;
+  const reintentar = async (a: AltaPorAtender): Promise<void> => {
+    try {
+      await api.post(`/altas/${a.id}/reintentar`);
+      setMensaje({ texto: `${a.nombre_taller}: el taller se creó.`, tipo: 'ok' });
+    } catch (err) {
+      setMensaje({ texto: err instanceof ErrorApi ? err.message : 'No se pudo crear el taller', tipo: 'error' });
+    }
+    alCambiar();
+  };
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3">
+      <h2 className="text-sm font-bold text-amber-900">Clientes que ya aprobaron su pago y cuyo taller todavía no se crea</h2>
+      <Aviso mensaje={mensaje.texto} tipo={mensaje.tipo} />
+      <ul className="space-y-1 text-sm">
+        {altas.map((a) => (
+          <li key={a.id} className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              <strong>{a.nombre_taller}</strong> ({a.slug}) · {a.admin_correo} · {a.estado === 'error' ? `falló ${a.intentos} veces` : 'creándose'}
+              {a.error ? ` — ${a.error}` : ''}
+            </span>
+            {puedeEscribir && <Button size="sm" variant="outline" onClick={() => void reintentar(a)}>Reintentar alta</Button>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function PestanaEmpresas({ planes, modulos }: { planes: Plan[]; modulos: Modulo[] }) {
   const { puedeEscribir } = useSesion();
   const [datos, setDatos] = useState<ListaEmpresas | null>(null);
   const [buscar, setBuscar] = useState('');
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: 'error' | 'ok' }>({ texto: '', tipo: 'ok' });
   const [editando, setEditando] = useState<number | null>(null);
+  const [viendo, setViendo] = useState<number | null>(null);
+  const [suspendiendo, setSuspendiendo] = useState<EmpresaFila | null>(null);
+  const [altas, setAltas] = useState<AltaPorAtender[]>([]);
 
   const cargar = useCallback(() => {
+    api.get<AltaPorAtender[]>('/altas').then(setAltas).catch(() => setAltas([]));
     api.get<ListaEmpresas>(`/empresas${buscar.trim() ? `?buscar=${encodeURIComponent(buscar.trim())}` : ''}`).then(setDatos).catch((e: unknown) => setMensaje({ texto: e instanceof ErrorApi ? e.message : 'No se pudo cargar', tipo: 'error' }));
   }, [buscar]);
   useEffect(cargar, [cargar]);
 
-  const cambiarEstado = async (e: EmpresaFila, estado: 'activa' | 'suspendida'): Promise<void> => {
-    const verbo = estado === 'suspendida' ? 'suspender' : 'reactivar';
-    if (!window.confirm(`¿Desea ${verbo} a ${e.nombre}?`)) return;
+  const reactivar = async (e: EmpresaFila): Promise<void> => {
+    if (!window.confirm(`¿Desea reactivar a ${e.nombre}?`)) return;
     try {
-      await api.post(`/empresas/${e.id}/estado`, { estado });
-      setMensaje({ texto: `${e.nombre}: ${estado === 'suspendida' ? 'suspendida' : 'reactivada'}.`, tipo: 'ok' });
+      await api.post(`/empresas/${e.id}/estado`, { estado: 'activa' });
+      setMensaje({ texto: `${e.nombre}: reactivada.`, tipo: 'ok' });
       cargar();
     } catch (err) {
       setMensaje({ texto: err instanceof ErrorApi ? err.message : 'No se pudo cambiar el estado', tipo: 'error' });
@@ -161,8 +367,9 @@ function PestanaEmpresas({ planes, modulos }: { planes: Plan[]; modulos: Modulo[
       etiqueta: 'Acciones',
       render: (e) => (
         <Acciones>
-          {puedeEscribir && e.estado === 'suspendida' && <BotonAccion onClick={() => cambiarEstado(e, 'activa')}>Activar</BotonAccion>}
-          {puedeEscribir && ['prueba', 'activa', 'pago_fallido', 'cancelada_con_acceso'].includes(e.estado) && <BotonAccion onClick={() => cambiarEstado(e, 'suspendida')}>Suspender</BotonAccion>}
+          <BotonAccion onClick={() => setViendo(e.id)}>Detalle</BotonAccion>
+          {puedeEscribir && e.estado === 'suspendida' && <BotonAccion onClick={() => void reactivar(e)}>Activar</BotonAccion>}
+          {puedeEscribir && ['prueba', 'activa', 'pago_fallido', 'cancelada_con_acceso'].includes(e.estado) && <BotonAccion onClick={() => setSuspendiendo(e)}>Suspender</BotonAccion>}
           <BotonEditar onClick={() => setEditando(e.id)}>{puedeEscribir ? 'Editar' : 'Ver'}</BotonEditar>
         </Acciones>
       ),
@@ -187,8 +394,21 @@ function PestanaEmpresas({ planes, modulos }: { planes: Plan[]; modulos: Modulo[
           </span>
         )}
       </div>
+      <AltasPorAtender altas={altas} alCambiar={cargar} />
       <Aviso mensaje={mensaje.texto} tipo={mensaje.tipo} />
       <Tabla columnas={columnas} filas={datos?.empresas ?? []} clave={(e) => e.id} vacio={datos ? 'Todavía no hay empresas. Se crean solas cuando un cliente se registra.' : 'Cargando…'} />
+      {viendo !== null && <FichaDeEmpresa id={viendo} alCerrar={() => setViendo(null)} alCambiar={cargar} />}
+      {suspendiendo && (
+        <SuspenderEmpresa
+          empresa={suspendiendo}
+          alCerrar={() => setSuspendiendo(null)}
+          alListo={() => {
+            setMensaje({ texto: `${suspendiendo.nombre}: suspendida.`, tipo: 'ok' });
+            setSuspendiendo(null);
+            cargar();
+          }}
+        />
+      )}
       {editando !== null && (
         <EditarEmpresa id={editando} planes={planes} modulos={modulos} alCerrar={() => setEditando(null)} alGuardar={() => { setEditando(null); setMensaje({ texto: 'Los cambios se guardaron.', tipo: 'ok' }); cargar(); }} />
       )}

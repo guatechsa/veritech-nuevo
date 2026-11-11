@@ -11,7 +11,7 @@ import { Actor, bitacora, conflictoSiDuplicado, TallerReq } from './comun';
  */
 export interface Campo {
   col: string;
-  tipo: 'texto' | 'codigo' | 'bool' | 'entero' | 'opcion' | 'porcentaje' | 'color';
+  tipo: 'texto' | 'codigo' | 'bool' | 'entero' | 'opcion' | 'porcentaje' | 'color' | 'referencia';
   /** Valores permitidos (tipo 'opcion'). */
   opciones?: string[];
   /** El valor no se puede cambiar después de crearlo (los códigos). */
@@ -58,6 +58,9 @@ function zodDe(c: Campo, parcial: boolean): ZodType {
     case 'color':
       z0 = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
       break;
+    case 'referencia':
+      z0 = z.number().int().positive().nullable();
+      break;
   }
   return parcial || !c.requerido ? z0.optional() : z0;
 }
@@ -82,6 +85,7 @@ function valorBd(c: Campo, v: unknown): unknown {
     case 'opcion':
     case 'porcentaje':
     case 'color':
+    case 'referencia':
       return v;
   }
 }

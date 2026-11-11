@@ -72,6 +72,8 @@ export async function siguienteNumero(con: PoolConnection, clave: string): Promi
 
 /** Traduce un choque de llave única a un 409 con el mensaje dado. */
 export function conflictoSiDuplicado(error: unknown, mensaje: string): never {
-  if ((error as { code?: string }).code === 'ER_DUP_ENTRY') throw new ErrorApp(409, 'CONFLICTO', mensaje);
+  const codigo = (error as { code?: string }).code;
+  if (codigo === 'ER_DUP_ENTRY') throw new ErrorApp(409, 'CONFLICTO', mensaje);
+  if (codigo === 'ER_NO_REFERENCED_ROW_2') throw new ErrorValidacion('Uno de los datos elegidos ya no existe');
   throw error;
 }

@@ -53,14 +53,20 @@ export const EVENTO_SESION_TALLER_VENCIDA = 'vt-sesion-taller-vencida';
 
 /** Cliente de la API del taller: pone la cabecera X-Taller y la sesión de ESTE taller. */
 export function crearApiTaller(slug: string) {
-  async function llamar<T>(metodo: string, ruta: string, cuerpo?: unknown): Promise<T> {
+  /** `archivo`: una foto o un PDF para subir tal cual (el cuerpo crudo); el nombre viaja en la cabecera X-Nombre-Archivo. */
+  async function llamar<T>(metodo: string, ruta: string, cuerpo?: unknown, archivo?: { blob: Blob; nombre: string }): Promise<T> {
     const token = leerTokenTaller(slug);
     let respuesta: Response;
     try {
       respuesta = await fetch(`/api/taller${ruta}`, {
         method: metodo,
-        headers: { 'Content-Type': 'application/json', 'X-Taller': slug, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+        headers: {
+          'Content-Type': archivo ? archivo.blob.type : 'application/json',
+          'X-Taller': slug,
+          ...(archivo ? { 'X-Nombre-Archivo': encodeURIComponent(archivo.nombre) } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: archivo ? archivo.blob : cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
       });
     } catch {
       throw new ErrorApi(0, 'SIN_CONEXION', 'No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.');
@@ -81,6 +87,7 @@ export function crearApiTaller(slug: string) {
     patch: <T,>(ruta: string, cuerpo: unknown) => llamar<T>('PATCH', ruta, cuerpo),
     put: <T,>(ruta: string, cuerpo: unknown) => llamar<T>('PUT', ruta, cuerpo),
     delete: <T,>(ruta: string) => llamar<T>('DELETE', ruta),
+    subir: <T,>(ruta: string, blob: Blob, nombre: string) => llamar<T>('POST', ruta, undefined, { blob, nombre }),
   };
 }
 export type ApiTaller = ReturnType<typeof crearApiTaller>;

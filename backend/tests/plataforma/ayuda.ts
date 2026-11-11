@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import mysql from 'mysql2/promise';
 import { Express } from 'express';
@@ -47,6 +48,7 @@ let contadorEmpresas = 0;
 export async function crearEntornoDePrueba(opciones: { limites?: Contexto['limites']; borradoAutomatico?: boolean } = {}): Promise<EntornoDePrueba> {
   const base = await baseTemporal();
   await aplicarMigraciones(base.config, base.base, CARPETA);
+  const carpetaArchivos = fs.mkdtempSync(path.join(os.tmpdir(), 'vtn-archivos-'));
   const entorno = leerEntorno({
     BD_USUARIO: base.config.usuario,
     BD_CLAVE: base.config.clave,
@@ -57,6 +59,7 @@ export async function crearEntornoDePrueba(opciones: { limites?: Contexto['limit
     PAYPAL_WEBHOOK_ID: 'WH-PRUEBA',
     BORRADO_AUTOMATICO: opciones.borradoAutomatico ? 'true' : 'false',
     TALLER_POR_ENCABEZADO: 'true',
+    ARCHIVOS_DIR: carpetaArchivos,
   } as NodeJS.ProcessEnv);
   const pool = crearPool(base.config, base.base, 5);
   const paypal = new PaypalSimulado();
@@ -164,6 +167,7 @@ export async function crearEntornoDePrueba(opciones: { limites?: Contexto['limit
     autorizado,
     cerrar: async () => {
       await borrarBasesDeTalleres();
+      fs.rmSync(carpetaArchivos, { recursive: true, force: true });
       await pool.end();
       await base.borrar();
     },

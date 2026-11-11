@@ -42,6 +42,8 @@ const esquema = z.object({
    * pruebas (mientras los talleres no tengan su propia dirección). En producción va apagado: manda el nombre de la dirección.
    */
   TALLER_POR_ENCABEZADO: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  /** Carpeta donde se guardan las fotos y documentos de los talleres (una subcarpeta por taller). Por defecto, `archivos` junto al sistema. */
+  ARCHIVOS_DIR: textoOpcional,
   /** Quién recibe las alertas internas (alta fallida, correos agotados…). */
   CORREO_ALERTAS: z.string().email().default('soporte@guatech.lat'),
 });

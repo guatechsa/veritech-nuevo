@@ -33,7 +33,10 @@ export const UNIDADES: DefCatalogo = {
 export const MARCAS: DefCatalogo = {
   tabla: 'marcas',
   nombre: 'una marca',
-  campos: [{ col: 'nombre', tipo: 'texto', requerido: true, max: 80 }],
+  campos: [
+    { col: 'nombre', tipo: 'texto', requerido: true, max: 80 },
+    { col: 'tipo_equipo_id', tipo: 'referencia' },
+  ],
   unica: 'nombre',
   ordenar: 'nombre',
   conActivo: true,
@@ -74,6 +77,32 @@ export const TIPOS_CLIENTE: DefCatalogo = {
     { col: 'descuento_trabajos', tipo: 'porcentaje', defecto: 0 },
     { col: 'descuento_materiales', tipo: 'porcentaje', defecto: 0 },
     { col: 'descuento_otros', tipo: 'porcentaje', defecto: 0 },
+  ],
+  unica: 'nombre',
+  ordenar: 'nombre',
+  conActivo: true,
+};
+
+export const TIPOS_CONTADOR: DefCatalogo = {
+  tabla: 'tipos_contador',
+  nombre: 'un tipo de contador',
+  campos: [
+    { col: 'nombre', tipo: 'texto', requerido: true, max: 80 },
+    { col: 'unidad_id', tipo: 'referencia', requerido: true, inmutable: true },
+    { col: 'es_calendario', tipo: 'bool', defecto: false, inmutable: true },
+  ],
+  unica: 'nombre',
+  ordenar: 'nombre',
+  conActivo: true,
+};
+
+export const TIPOS_DOCUMENTO: DefCatalogo = {
+  tabla: 'tipos_documento',
+  nombre: 'un tipo de documento',
+  campos: [
+    { col: 'nombre', tipo: 'texto', requerido: true, max: 100 },
+    { col: 'requiere_vencimiento', tipo: 'bool', defecto: false },
+    { col: 'dias_aviso', tipo: 'entero', min: 0, max: 365, defecto: 30 },
   ],
   unica: 'nombre',
   ordenar: 'nombre',

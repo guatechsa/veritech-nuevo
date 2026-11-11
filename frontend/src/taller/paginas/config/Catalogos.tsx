@@ -177,13 +177,29 @@ function FormTrabajo({ inicial, alCerrar, alGuardar }: { inicial: Trabajo | null
   const [variante, setVariante] = useState(inicial?.variante ?? '');
   const [area, setArea] = useState(inicial?.area_trabajo_id ? String(inicial.area_trabajo_id) : '');
   const [error, setError] = useState('');
+  const [horas, setHoras] = useState<Record<number, string>>({});
+  const tiposEquipo = useLista(() => api.get<Array<Opcion & { activo: number }>>('/tipos-equipo'), [api]);
+  useEffect(() => {
+    if (!inicial) return;
+    api.get<Array<{ tipo_equipo_id: number; horas: number | null }>>(`/catalogos/trabajos/${inicial.id}/horas`).then((f) => {
+      setHoras(Object.fromEntries(f.filter((x) => x.horas !== null).map((x) => [x.tipo_equipo_id, String(x.horas)])));
+    }).catch(() => undefined);
+  }, [api, inicial]);
   const subs = useLista(() => (sis ? api.get<Opcion[]>(`/catalogos/subsistemas?sistema_id=${sis}`) : Promise.resolve([])), [api, sis]);
   const partes = useLista(() => (sub ? api.get<Opcion[]>(`/catalogos/partes?subsistema_id=${sub}`) : Promise.resolve([])), [api, sub]);
   const enviar = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     try {
-      if (inicial) await api.patch(`/catalogos/trabajos/${inicial.id}`, { variante: variante.trim() || null, area_trabajo_id: area ? Number(area) : null });
-      else await api.post('/catalogos/trabajos', { parte_id: Number(parte), accion_id: Number(accion), variante: variante.trim() || null, area_trabajo_id: area ? Number(area) : null });
+      let trabajoId: number;
+      if (inicial) {
+        await api.patch(`/catalogos/trabajos/${inicial.id}`, { variante: variante.trim() || null, area_trabajo_id: area ? Number(area) : null });
+        trabajoId = inicial.id;
+      } else {
+        const creado = await api.post<{ id: number }>('/catalogos/trabajos', { parte_id: Number(parte), accion_id: Number(accion), variante: variante.trim() || null, area_trabajo_id: area ? Number(area) : null });
+        trabajoId = creado.id;
+      }
+      const lista = (tiposEquipo.datos ?? []).map((t) => ({ tipo_equipo_id: t.id, horas: horas[t.id]?.trim() ? Number(horas[t.id]) : null }));
+      if (lista.some((x) => x.horas !== null) || inicial) await api.put(`/catalogos/trabajos/${trabajoId}/horas`, { horas: lista });
       alGuardar();
     } catch (err) {
       setError(mensajeDe(err, 'No se pudo guardar'));
@@ -206,6 +222,19 @@ function FormTrabajo({ inicial, alCerrar, alGuardar }: { inicial: Trabajo | null
           <Campo etiqueta="Variante (opcional)" ayuda="Distingue trabajos parecidos, por ejemplo: sintético."><input className={CLASE_INPUT} value={variante} onChange={(e) => setVariante(e.target.value)} maxLength={100} /></Campo>
           <Campo etiqueta="Área de trabajo (opcional)" ayuda="Vacío = trabajo general."><select className={CLASE_INPUT} value={area} onChange={(e) => setArea(e.target.value)}><option value="">General</option>{(areas.datos ?? []).map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}</select></Campo>
         </div>
+        {(tiposEquipo.datos ?? []).length > 0 && (
+          <fieldset className="rounded-md border border-gray-200 p-3">
+            <legend className="px-1 text-sm font-medium text-gray-700">Horas estándar por tipo de equipo</legend>
+            <p className="mb-2 text-xs text-gray-500">El precio de este trabajo en una orden será las horas por la tarifa por hora del tipo de equipo. Déjelo vacío si no aplica a ese tipo.</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {(tiposEquipo.datos ?? []).map((t) => (
+                <Campo key={t.id} etiqueta={t.nombre}>
+                  <input type="number" min="0" max="999" step="0.25" className={CLASE_INPUT} value={horas[t.id] ?? ''} onChange={(e) => setHoras((x) => ({ ...x, [t.id]: e.target.value }))} placeholder="Horas" />
+                </Campo>
+              ))}
+            </div>
+          </fieldset>
+        )}
         <div className="flex justify-end gap-2 border-t pt-3"><Button variant="outline" onClick={alCerrar}>Cancelar</Button><Button type="submit">Guardar</Button></div>
       </form>
     </Modal>
@@ -297,13 +326,38 @@ function MatrizNiveles() {
   );
 }
 
+// ── Marcas (generales o de un tipo de equipo) ────────────────────────────────────────
+function Marcas() {
+  const { api } = useSesionTaller();
+  const tipos = useLista(() => api.get<Array<Opcion & { activo: number }>>('/tipos-equipo?inactivos=true'), [api]);
+  const nombreDe = (id: unknown): string => (tipos.datos ?? []).find((t) => t.id === id)?.nombre ?? '';
+  return (
+    <CatalogoSimple
+      key={tipos.datos ? 'listo' : 'cargando'}
+      titulo="Marcas"
+      singular="marca"
+      ruta="/catalogos/marcas"
+      permiso="catalogos.gestionar"
+      descripcion="Una marca general sirve para cualquier equipo; si la limita a un tipo (por ejemplo, vehículos), solo se ofrece en equipos de ese tipo."
+      campos={[
+        { clave: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true, max: 80 },
+        { clave: 'tipo_equipo_id', etiqueta: 'Tipo de equipo', tipo: 'referencia', ayudaVacio: 'General (todos los tipos)', opciones: (tipos.datos ?? []).filter((t) => t.activo === 1).map((t) => ({ valor: String(t.id), texto: t.nombre })) },
+      ]}
+      mostrar={[
+        { clave: 'nombre', etiqueta: 'Marca' },
+        { clave: 'tipo_equipo_id', etiqueta: 'Tipo de equipo', render: (f) => nombreDe(f['tipo_equipo_id']) || 'General' },
+      ]}
+    />
+  );
+}
+
 // ── Pantalla ─────────────────────────────────────────────────────────────────────────
 const SECCIONES: Array<{ k: string; t: string; vista: () => ReactNode }> = [
   { k: 'jerarquia', t: 'Jerarquía técnica', vista: () => <Jerarquia /> },
   { k: 'trabajos', t: 'Trabajos', vista: () => <Trabajos /> },
   { k: 'acciones', t: 'Acciones', vista: () => <CatalogoSimple titulo="Acciones" singular="acción" ruta="/catalogos/acciones" permiso="catalogos.gestionar" descripcion="Lo que se hace sobre una parte: cambiar, revisar, reparar…" campos={[{ clave: 'codigo', etiqueta: 'Código (3 letras)', tipo: 'texto', soloAlCrear: true, requerido: true, max: 3 }, { clave: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true, max: 60 }]} mostrar={[{ clave: 'codigo', etiqueta: 'Código' }, { clave: 'nombre', etiqueta: 'Acción' }]} /> },
   { k: 'unidades', t: 'Unidades', vista: () => <CatalogoSimple titulo="Unidades" singular="unidad" ruta="/catalogos/unidades" permiso="catalogos.gestionar" descripcion="Un solo catálogo para inventario y contadores: «uso» dice dónde aparece." campos={[{ clave: 'codigo', etiqueta: 'Código', tipo: 'texto', soloAlCrear: true, requerido: true, max: 10 }, { clave: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true, max: 60 }, { clave: 'uso', etiqueta: 'Se usa en', tipo: 'opcion', defecto: 'inventario', opciones: [{ valor: 'inventario', texto: 'Inventario' }, { valor: 'contador', texto: 'Contadores' }, { valor: 'ambos', texto: 'Inventario y contadores' }] }]} mostrar={[{ clave: 'codigo', etiqueta: 'Código' }, { clave: 'nombre', etiqueta: 'Unidad' }, { clave: 'uso', etiqueta: 'Se usa en', render: (f) => ({ inventario: 'Inventario', contador: 'Contadores', ambos: 'Ambos' }[String(f['uso'])] ?? String(f['uso'])) }]} /> },
-  { k: 'marcas', t: 'Marcas', vista: () => <CatalogoSimple titulo="Marcas" singular="marca" ruta="/catalogos/marcas" permiso="catalogos.gestionar" campos={[{ clave: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true, max: 80 }]} mostrar={[{ clave: 'nombre', etiqueta: 'Marca' }]} /> },
+  { k: 'marcas', t: 'Marcas', vista: () => <Marcas /> },
   {
     k: 'tipos-orden',
     t: 'Tipos de orden',

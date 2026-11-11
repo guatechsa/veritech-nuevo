@@ -10,13 +10,15 @@ import { Aviso, Campo, CLASE_INPUT, mensajeDe, Seccion, useLista } from './ui';
 export interface CampoCatalogo {
   clave: string;
   etiqueta: string;
-  tipo: 'texto' | 'numero' | 'opcion' | 'bool' | 'color';
+  tipo: 'texto' | 'numero' | 'opcion' | 'bool' | 'color' | 'referencia';
   opciones?: Array<{ valor: string; texto: string }>;
   /** Solo se escribe al crear (los códigos no se cambian). */
   soloAlCrear?: boolean;
   requerido?: boolean;
   max?: number;
   ayuda?: string;
+  /** Texto de la opción vacía de una referencia opcional. */
+  ayudaVacio?: string;
   defecto?: string | number | boolean;
 }
 
@@ -80,7 +82,7 @@ export function CatalogoSimple({
       if (c.soloAlCrear && editando !== 'nuevo') continue;
       if (editando !== 'nuevo' && editando && bloqueadosSi?.(editando).includes(c.clave)) continue;
       const v = valores[c.clave];
-      cuerpo[c.clave] = c.tipo === 'bool' ? v === true : c.tipo === 'numero' ? (v === '' ? undefined : Number(v)) : v;
+      cuerpo[c.clave] = c.tipo === 'bool' ? v === true : c.tipo === 'numero' ? (v === '' ? undefined : Number(v)) : c.tipo === 'referencia' ? (v === '' ? null : Number(v)) : v;
     }
     try {
       if (editando === 'nuevo') await api.post(ruta, cuerpo);
@@ -128,8 +130,10 @@ export function CatalogoSimple({
               }
               return (
                 <Campo key={c.clave} etiqueta={c.etiqueta} ayuda={c.ayuda}>
-                  {c.tipo === 'opcion' ? (
+                  {c.tipo === 'opcion' || c.tipo === 'referencia' ? (
                     <select className={CLASE_INPUT} value={String(v ?? '')} disabled={bloqueado} onChange={(e) => setValores((x) => ({ ...x, [c.clave]: e.target.value }))}>
+                      {c.tipo === 'referencia' && !c.requerido && <option value="">{c.ayudaVacio ?? 'Ninguno'}</option>}
+                      {c.tipo === 'referencia' && c.requerido && <option value="">Elija…</option>}
                       {(c.opciones ?? []).map((o) => <option key={o.valor} value={o.valor}>{o.texto}</option>)}
                     </select>
                   ) : c.tipo === 'color' ? (

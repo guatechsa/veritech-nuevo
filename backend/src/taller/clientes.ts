@@ -2,6 +2,7 @@ import { Ejecutor, ejecutar, filas, transaccion, una } from '../db/consulta';
 import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { normalizarCampo } from '../utils/texto';
 import { Actor, bitacora, conflictoSiDuplicado, TallerReq } from './comun';
+import { contarEquiposDeCliente } from './equipos';
 
 export type Condicion = 'contado' | 'credito';
 
@@ -52,9 +53,9 @@ export async function listarClientes(t: TallerReq, f: { buscar?: string; activo?
   return { total: Number(total?.n ?? 0), pagina: f.pagina, porPagina: f.porPagina, registros };
 }
 
-/** Cuánta historia tiene un cliente (equipos, órdenes…). Las órdenes y los equipos llegan en fases posteriores: aquí se irán sumando. */
-export async function historiaDeCliente(_con: Ejecutor, _clienteId: number): Promise<{ equipos: number; ordenes: number }> {
-  return { equipos: 0, ordenes: 0 };
+/** Cuánta historia tiene un cliente (equipos, órdenes…). Las órdenes llegan en una fase posterior: aquí se irán sumando. */
+export async function historiaDeCliente(con: Ejecutor, clienteId: number): Promise<{ equipos: number; ordenes: number }> {
+  return { equipos: await contarEquiposDeCliente(con, clienteId), ordenes: 0 };
 }
 
 export async function obtenerCliente(t: TallerReq, id: number) {

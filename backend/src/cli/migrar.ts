@@ -3,14 +3,14 @@
 //   npm run migrar:taller -- <nombre_de_base> -> aplica database/taller a la base de UN taller
 import 'dotenv/config';
 import path from 'node:path';
-import { leerEntorno } from '../src/config/entorno';
-import { aplicarMigraciones } from '../src/db/migrador';
+import { leerEntorno } from '../config/entorno';
+import { aplicarMigraciones } from '../db/migrador';
 
 async function principal(): Promise<void> {
   const [destino, baseTaller] = process.argv.slice(2);
   const entorno = leerEntorno();
   const config = { host: entorno.BD_HOST, puerto: entorno.BD_PUERTO, usuario: entorno.BD_USUARIO, clave: entorno.BD_CLAVE };
-  const raiz = path.join(__dirname, '..', '..', 'database');
+  const raiz = path.join(__dirname, '..', '..', '..', 'database');
 
   let base: string;
   let carpeta: string;

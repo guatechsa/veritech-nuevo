@@ -10,8 +10,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
-    "migrar:plataforma": "tsx scripts/migrar.ts plataforma",
-    "migrar:taller": "tsx scripts/migrar.ts taller"
+    "migrar:plataforma": "node dist/cli/migrar.js plataforma",
+    "migrar:taller": "node dist/cli/migrar.js taller"
   },
   "engines": {
     "node": ">=22"

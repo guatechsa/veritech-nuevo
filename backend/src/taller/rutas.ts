@@ -1,24 +1,15 @@
-import { Request, Router } from 'express';
+import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { ErrorApp, ErrorValidacion } from '../errores';
-import { agenteDe, Contexto, ipDe } from '../plataforma/contexto';
+import { ErrorApp } from '../errores';
+import { Contexto, ipDe } from '../plataforma/contexto';
+import { origenDe, validar } from './comun';
+import { montarRutasEstructura } from './rutas-estructura';
 import { exigirTurnstile } from '../utils/turnstile';
-import { canjearAccesoSoporte, cambiarContrasena, cerrarSesion, ingresar, OrigenTaller, perfilDeSesion, restablecerContrasena, solicitarRecuperacion } from './auth';
+import { canjearAccesoSoporte, cambiarContrasena, cerrarSesion, ingresar, perfilDeSesion, restablecerContrasena, solicitarRecuperacion } from './auth';
 import { resolverTaller } from './resolutor';
 import { autenticarTaller, bloquearCambiosSiSoloExportar, exigirPermiso } from './sesion';
 import { cancelarDesdeTaller, resumenSuscripcion } from './suscripcion';
-
-export function validar<T extends z.ZodType>(esquema: T, datos: unknown): z.infer<T> {
-  const resultado = esquema.safeParse(datos);
-  if (!resultado.success) {
-    const incidencia = resultado.error.issues[0];
-    throw new ErrorValidacion(`El dato «${incidencia?.path.join('.') || 'solicitud'}» falta o no es válido`);
-  }
-  return resultado.data;
-}
-
-export const origenDe = (req: Request): OrigenTaller => ({ ip: ipDe(req), dispositivo: agenteDe(req) });
 
 function limitador(limite: number, minutos: number) {
   return rateLimit({
@@ -109,6 +100,8 @@ export function crearRutasTaller(ctx: Contexto): Router {
     const r = await cancelarDesdeTaller(ctx, req.taller!.empresa, req.sesionTaller!, datos.motivo || 'SIN MOTIVO', ipDe(req));
     res.json({ success: true, data: r });
   });
+
+  montarRutasEstructura(router, ctx);
 
   return router;
 }

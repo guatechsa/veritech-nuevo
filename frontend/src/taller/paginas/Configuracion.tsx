@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Badge from '../../components/ui-guatech/Badge.jsx';
 import Button from '../../components/ui-guatech/Button.jsx';
@@ -8,6 +8,12 @@ import Tabla, { Columna } from '../../admin/componentes/Tabla';
 import { dinero } from '../../admin/tipos';
 import { fechaHoraLocal } from '../../utils/hora';
 import { useSesionTaller } from '../Sesion';
+import { Colaboradores } from './config/Colaboradores';
+import { Bitacora, General } from './config/General';
+import { AreasYBodegas, Sucursales } from './config/Estructura';
+import { JornadaYAusencias } from './config/Jornada';
+import { PuestosYCredenciales } from './config/Puestos';
+import { Roles } from './config/Roles';
 
 interface Suscripcion {
   estado: string;
@@ -151,29 +157,42 @@ function PestanaCuenta() {
   );
 }
 
+type Pestana = { clave: string; texto: string; permiso?: string; vista: () => ReactNode };
+
+/** Todo lo que se configura vive aquí, en pestañas (estándar §13: el menú es de un solo nivel). Cada una aparece según los permisos. */
+const PESTANAS: Pestana[] = [
+  { clave: 'general', texto: 'General', permiso: 'configuracion.ver', vista: () => <General /> },
+  { clave: 'sucursales', texto: 'Sucursales', permiso: 'sucursales.ver', vista: () => <Sucursales /> },
+  { clave: 'areas', texto: 'Áreas y bodegas', permiso: 'areas.ver', vista: () => <AreasYBodegas /> },
+  { clave: 'colaboradores', texto: 'Colaboradores', permiso: 'colaboradores.ver', vista: () => <Colaboradores /> },
+  { clave: 'puestos', texto: 'Puestos y credenciales', permiso: 'colaboradores.ver', vista: () => <PuestosYCredenciales /> },
+  { clave: 'roles', texto: 'Roles y permisos', permiso: 'roles.ver', vista: () => <Roles /> },
+  { clave: 'jornada', texto: 'Jornada y ausencias', permiso: 'colaboradores.ver', vista: () => <JornadaYAusencias /> },
+  { clave: 'suscripcion', texto: 'Suscripción y pagos', permiso: 'suscripcion.ver', vista: () => <PestanaSuscripcion /> },
+  { clave: 'bitacora', texto: 'Bitácora', permiso: 'bitacora.ver', vista: () => <Bitacora /> },
+  { clave: 'cuenta', texto: 'Mi cuenta', vista: () => <PestanaCuenta /> },
+];
+
 export default function Configuracion() {
   const { tiene } = useSesionTaller();
   const [params, setParams] = useSearchParams();
-  const pestanas = [
-    ...(tiene('suscripcion.ver') ? [{ clave: 'suscripcion', texto: 'Suscripción y pagos' }] : []),
-    { clave: 'cuenta', texto: 'Mi cuenta' },
-  ];
-  const actual = pestanas.find((p) => p.clave === params.get('tab'))?.clave ?? pestanas[0]?.clave;
+  const visibles = PESTANAS.filter((p) => !p.permiso || tiene(p.permiso));
+  const actual = visibles.find((p) => p.clave === params.get('tab')) ?? visibles[0];
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold text-gray-900">Configuración</h1>
       <div className="flex flex-wrap gap-2">
-        {pestanas.map((p) => (
+        {visibles.map((p) => (
           <button
             key={p.clave}
             onClick={() => setParams({ tab: p.clave }, { replace: true })}
-            className={`rounded-md border border-gray-200 px-4 py-2 text-sm font-medium ${actual === p.clave ? 'bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+            className={`rounded-md border border-gray-200 px-4 py-2 text-sm font-medium ${actual?.clave === p.clave ? 'bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}`}
           >
             {p.texto}
           </button>
         ))}
       </div>
-      {actual === 'suscripcion' ? <PestanaSuscripcion /> : <PestanaCuenta />}
+      {actual?.vista()}
     </div>
   );
 }

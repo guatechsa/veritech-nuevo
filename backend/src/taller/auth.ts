@@ -19,10 +19,8 @@ const MINUTOS_RECUPERACION = 30;
 const INTENTOS_ANTES_DE_BLOQUEAR = 5;
 const MINUTOS_BLOQUEO = 15;
 
-export interface OrigenTaller {
-  ip: string;
-  dispositivo: string;
-}
+export type { OrigenTaller } from './comun';
+import { OrigenTaller } from './comun';
 
 interface Taller {
   empresa: EmpresaDePeticion;

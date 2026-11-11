@@ -6,7 +6,9 @@ import { exigirTurnstile } from '../utils/turnstile';
 import { listarAuditoria } from './auditoria';
 import { autenticar, cambiarContrasena, exigirRol, ingresar, restablecerContrasena, solicitarRecuperacion } from './auth';
 import { agenteDe, Contexto, ipDe } from './contexto';
-import { actualizarEmpresa, cambiarEstadoEmpresa, listarEmpresas, obtenerEmpresa } from './empresas';
+import { aprovisionarAlta } from '../alta/aprovisionar';
+import { conciliarEmpresa } from '../cobro/conciliacion';
+import { actualizarEmpresa, cambiarEstadoEmpresa, detalleEmpresa, listarAltasPorAtender, listarEmpresas, obtenerEmpresa } from './empresas';
 import { actualizarPlan, listarModulos, listarPlanes } from './planes';
 import { obtenerIndicadores } from './stats';
 import { actualizarUsuario, crearUsuario, listarUsuarios, restablecerContrasenaDeUsuario } from './usuarios';
@@ -99,6 +101,25 @@ export function crearRutasPlataforma(ctx: Contexto): Router {
 
   router.get('/empresas/:id', requiereSesion, async (req, res) => {
     res.json({ success: true, data: await obtenerEmpresa(ctx, idDe(req)) });
+  });
+
+  router.get('/empresas/:id/detalle', requiereSesion, async (req, res) => {
+    res.json({ success: true, data: await detalleEmpresa(ctx, idDe(req)) });
+  });
+
+  /** Pone la empresa al día con PayPal ahora mismo (lo mismo que hace la conciliación cada 3 horas). */
+  router.post('/empresas/:id/conciliar', requiereSesion, puedeEscribir, async (req, res) => {
+    const r = await conciliarEmpresa(ctx, idDe(req), 'manual', { tipo: 'conciliacion_manual', usuarioId: req.usuarioPlataforma!.id });
+    res.json({ success: true, data: r });
+  });
+
+  router.get('/altas', requiereSesion, async (_req, res) => {
+    res.json({ success: true, data: await listarAltasPorAtender(ctx) });
+  });
+
+  /** Reintenta crear el taller de un cliente que ya pagó (alta en error o atorada). */
+  router.post('/altas/:id/reintentar', requiereSesion, puedeEscribir, async (req, res) => {
+    res.json({ success: true, data: await aprovisionarAlta(ctx, idDe(req)) });
   });
 
   router.patch('/empresas/:id', requiereSesion, puedeEscribir, async (req, res) => {

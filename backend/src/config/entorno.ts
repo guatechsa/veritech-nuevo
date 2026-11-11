@@ -27,6 +27,18 @@ const esquema = z.object({
   SMTP_DESDE: z.string().default('VERI-TECH <noreply@veritech.lat>'),
   /** Casilla anti-robots de Cloudflare para formularios públicos. Si falta, no se exige (como en el sistema actual). */
   TURNSTILE_SECRET: textoOpcional,
+  /** Dominio bajo el que viven los talleres: <slug>.<dominio>. */
+  DOMINIO_TALLERES: z.string().min(3).default('veritech.lat'),
+  /** PayPal: sin identificador y llave el cobro queda apagado (el registro público no puede completarse). */
+  PAYPAL_MODO: z.enum(['sandbox', 'live']).default('sandbox'),
+  PAYPAL_CLIENT_ID: textoOpcional,
+  PAYPAL_SECRETO: textoOpcional,
+  /** Sin este identificador el aviso (webhook) de PayPal se rechaza: la verificación de firma nunca falla abierta. */
+  PAYPAL_WEBHOOK_ID: textoOpcional,
+  /** Borrado real de la base de un taller cerrado. Apagado hasta que Luis lo active. */
+  BORRADO_AUTOMATICO: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  /** Quién recibe las alertas internas (alta fallida, correos agotados…). */
+  CORREO_ALERTAS: z.string().email().default('soporte@guatech.lat'),
 });
 
 export type Entorno = z.infer<typeof esquema>;

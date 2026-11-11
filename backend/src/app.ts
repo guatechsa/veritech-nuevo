@@ -1,5 +1,6 @@
 import express, { ErrorRequestHandler, Express, Request, Response } from 'express';
 import helmet from 'helmet';
+import { crearRutasPublicas } from './alta/rutas';
 import { ErrorApp } from './errores';
 import { Contexto } from './plataforma/contexto';
 import { crearRutasPlataforma } from './plataforma/rutas';
@@ -17,6 +18,16 @@ const manejadorDeErrores: ErrorRequestHandler = (error, _req, res, _next) => {
     res.status(error.estado).json({ success: false, codigo: error.codigo, error: error.message });
     return;
   }
+  // Un cuerpo que no es JSON válido o es demasiado grande es un error de quien llama, no del servidor.
+  const tipo = (error as { type?: string }).type;
+  if (tipo === 'entity.parse.failed') {
+    res.status(400).json({ success: false, codigo: 'VALIDACION', error: 'El cuerpo de la solicitud no es un JSON válido' });
+    return;
+  }
+  if (tipo === 'entity.too.large') {
+    res.status(413).json({ success: false, codigo: 'DEMASIADO_GRANDE', error: 'La solicitud es demasiado grande' });
+    return;
+  }
   // Un error inesperado nunca le muestra detalles internos a quien llama.
   console.error('[error no controlado]', error);
   res.status(500).json({ success: false, codigo: 'ERROR_INTERNO', error: 'No se pudo completar la operación' });
@@ -27,7 +38,15 @@ export function crearApp(dependencias: DependenciasApp): Express {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(helmet());
-  app.use(express.json({ limit: '1mb' }));
+  // El cuerpo crudo solo se conserva para los avisos de PayPal: su firma se verifica sobre los bytes exactos recibidos.
+  app.use(
+    express.json({
+      limit: '1mb',
+      verify: (req, _res, buf) => {
+        if ((req as { url?: string }).url?.startsWith('/api/webhooks/')) (req as { rawBody?: string }).rawBody = buf.toString('utf8');
+      },
+    })
+  );
 
   // Estándar GUATECH §1: un endpoint de salud que dice QUÉ versión corre de verdad.
   const salud = async (_req: Request, res: Response): Promise<void> => {
@@ -47,7 +66,10 @@ export function crearApp(dependencias: DependenciasApp): Express {
   app.get('/health', salud);
   app.get('/api/health', salud);
 
-  if (dependencias.plataforma) app.use('/api/plataforma', crearRutasPlataforma(dependencias.plataforma));
+  if (dependencias.plataforma) {
+    app.use('/api/plataforma', crearRutasPlataforma(dependencias.plataforma));
+    app.use('/api', crearRutasPublicas(dependencias.plataforma));
+  }
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, codigo: 'NO_ENCONTRADO', error: 'No encontrado' });

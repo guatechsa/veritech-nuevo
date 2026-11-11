@@ -1,3 +1,4 @@
+import { EstadoEmpresa } from '../cobro/estado';
 import { ejecutar, filas, transaccion, una } from '../db/consulta';
 import { ErrorConflicto, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { normalizarCampo } from '../utils/texto';
@@ -9,7 +10,7 @@ interface Origen {
   userAgent: string;
 }
 
-export type EstadoEmpresa = 'pendiente' | 'prueba' | 'activa' | 'pago_fallido' | 'suspendida' | 'cancelada_con_acceso' | 'solo_exportar' | 'cerrada';
+export type { EstadoEmpresa } from '../cobro/estado';
 
 /** Estados con contrato vigente (cuentan como "clientes activos" en el panel). */
 export const ESTADOS_ACTIVOS: EstadoEmpresa[] = ['activa', 'pago_fallido', 'cancelada_con_acceso'];
@@ -131,7 +132,18 @@ export async function cambiarEstadoEmpresa(
     if (nuevo === 'activa' && empresa.estado !== 'suspendida') {
       throw new ErrorConflicto('Solo se puede reactivar una empresa suspendida');
     }
-    await ejecutar(con, 'UPDATE empresas SET estado = ? WHERE id = ?', [nuevo, id]);
+    if (nuevo === 'suspendida' && !motivo) throw new ErrorValidacion('Para suspender una empresa escriba el motivo');
+    await ejecutar(con, 'UPDATE empresas SET estado = ?, suspension_origen = ?, estado_desde = UTC_TIMESTAMP(), gracia_hasta = NULL WHERE id = ?', [
+      nuevo,
+      nuevo === 'suspendida' ? 'manual' : null,
+      id,
+    ]);
+    await ejecutar(
+      con,
+      `INSERT INTO suscripcion_eventos (empresa_id, tipo, estado_antes, estado_despues, origen, usuario_plataforma_id, detalle, procesado_en)
+       VALUES (?, ?, ?, ?, 'manual', ?, ?, UTC_TIMESTAMP())`,
+      [id, nuevo === 'suspendida' ? 'suspension_manual' : 'reactivacion_manual', empresa.estado, nuevo, actor.id, (motivo ?? 'sin motivo').slice(0, 500)]
+    );
     await registrarAuditoria(con, {
       usuarioId: actor.id,
       accion: nuevo === 'suspendida' ? 'empresa_suspendida' : 'empresa_activada',
@@ -140,4 +152,28 @@ export async function cambiarEstadoEmpresa(
       ...origen,
     });
   });
+}
+
+/** Ficha completa de una empresa para el panel: sus datos, pagos recientes, eventos de la suscripción y su alta de origen. */
+export async function detalleEmpresa(ctx: Contexto, id: number) {
+  const empresa = await obtenerEmpresa(ctx, id);
+  const pagos = await filas(ctx.pool, 'SELECT paypal_transaccion_id, fecha, monto, moneda, estado FROM pagos WHERE empresa_id = ? ORDER BY fecha DESC LIMIT 20', [id]);
+  const eventos = await filas(
+    ctx.pool,
+    `SELECT e.id, e.created_at, e.tipo, e.estado_antes, e.estado_despues, e.origen, e.detalle, u.nombre AS usuario_nombre
+       FROM suscripcion_eventos e LEFT JOIN usuarios_plataforma u ON u.id = e.usuario_plataforma_id
+      WHERE e.empresa_id = ? ORDER BY e.id DESC LIMIT 30`,
+    [id]
+  );
+  const alta = await una(ctx.pool, 'SELECT id, estado, intentos, error, aprobada_en FROM altas_pendientes WHERE empresa_id = ? ORDER BY id DESC LIMIT 1', [id]);
+  return { empresa, pagos, eventos, alta };
+}
+
+/** Altas aprobadas (el cliente ya pagó) cuyo taller todavía no existe: lo que soporte debe vigilar. */
+export async function listarAltasPorAtender(ctx: Contexto) {
+  return filas(
+    ctx.pool,
+    `SELECT a.id, a.slug, a.nombre_taller, a.admin_correo, a.estado, a.intentos, a.error, a.aprobada_en, a.empresa_id
+       FROM altas_pendientes a WHERE a.estado IN ('aprobada','error') ORDER BY a.id DESC LIMIT 50`
+  );
 }

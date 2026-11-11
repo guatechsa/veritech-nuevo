@@ -34,3 +34,20 @@ export async function borrarBaseTemporal(config: ConfigBd, base: string): Promis
     await con.end();
   }
 }
+
+/**
+ * Borra la base de un taller cerrado. Triple guarda: el nombre debe llevar el prefijo de talleres, no puede ser la base de
+ * la plataforma y debe ser más largo que el prefijo (nunca una base "pelada"). Quien llama además comprueba el estado.
+ */
+export async function borrarBaseDeTaller(config: ConfigBd, base: string, prefijoTaller: string, basePlataforma: string): Promise<void> {
+  validarNombre(base);
+  if (!base.startsWith(prefijoTaller) || base.length <= prefijoTaller.length || base === basePlataforma) {
+    throw new ErrorValidacion(`Por seguridad no se borra la base ${base}: no es de un taller`);
+  }
+  const con = await mysql.createConnection(opcionesBase(config));
+  try {
+    await con.query(`DROP DATABASE IF EXISTS \`${base}\``);
+  } finally {
+    await con.end();
+  }
+}

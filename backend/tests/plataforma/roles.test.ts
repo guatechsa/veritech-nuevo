@@ -32,7 +32,7 @@ describe('permisos por rol', () => {
       expect([ruta, (await api.get(`/api/plataforma${ruta}`)).status]).toEqual([ruta, 200]);
     }
     expect((await api.patch(`/api/plataforma/empresas/${empresaId}`).send({ nombre: 'X' })).status).toBe(403);
-    expect((await api.post(`/api/plataforma/empresas/${empresaId}/estado`).send({ estado: 'suspendida' })).status).toBe(403);
+    expect((await api.post(`/api/plataforma/empresas/${empresaId}/estado`).send({ estado: 'suspendida', motivo: 'PRUEBA' })).status).toBe(403);
     expect((await api.post('/api/plataforma/usuarios').send({ nombre: 'N', correo: 'n@x.test', rol: 'VIEWER' })).status).toBe(403);
     expect((await api.patch('/api/plataforma/planes/1').send({ precio_mensual: 1 })).status).toBe(403);
   });
@@ -42,7 +42,7 @@ describe('permisos por rol', () => {
     const empresaId = await e.empresa({ nombre: 'TALLER VIEJO' });
     const api = e.autorizado(a.token);
     expect((await api.patch(`/api/plataforma/empresas/${empresaId}`).send({ nombre: 'Taller Nuevo' })).status).toBe(200);
-    expect((await api.post(`/api/plataforma/empresas/${empresaId}/estado`).send({ estado: 'suspendida' })).status).toBe(200);
+    expect((await api.post(`/api/plataforma/empresas/${empresaId}/estado`).send({ estado: 'suspendida', motivo: 'PRUEBA' })).status).toBe(200);
     expect((await api.post('/api/plataforma/usuarios').send({ nombre: 'N', correo: 'n@x.test', rol: 'VIEWER' })).status).toBe(403);
     expect((await api.patch('/api/plataforma/usuarios/1').send({ activo: false })).status).toBe(403);
     expect((await api.post('/api/plataforma/usuarios/1/contrasena-temporal')).status).toBe(403);

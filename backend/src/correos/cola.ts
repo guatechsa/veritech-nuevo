@@ -11,17 +11,21 @@ export interface Transporte {
   enviar(mensaje: MensajeCorreo): Promise<void>;
 }
 
-/** Pone un correo en la cola. Se puede llamar dentro de una transacción: si esta se deshace, el correo tampoco sale. */
+/**
+ * Pone un correo en la cola. Se puede llamar dentro de una transacción: si esta se deshace, el correo tampoco sale.
+ * Con `claveUnica`, el mismo correo nunca se encola dos veces (devuelve 0 si ya existía): así una tarea que corre
+ * dos veces no le manda dos avisos a la misma persona.
+ */
 export async function encolarCorreo(
   ejecutor: Ejecutor,
-  correo: { tipo: string; destinatarios: string[]; asunto: string; cuerpoHtml: string }
+  correo: { tipo: string; destinatarios: string[]; asunto: string; cuerpoHtml: string; claveUnica?: string }
 ): Promise<number> {
   const r = await ejecutar(
     ejecutor,
-    'INSERT INTO correos_salida (tipo, destinatarios, asunto, cuerpo) VALUES (?, ?, ?, ?)',
-    [correo.tipo, correo.destinatarios.join(','), correo.asunto.slice(0, 200), correo.cuerpoHtml]
+    `INSERT IGNORE INTO correos_salida (tipo, clave_unica, destinatarios, asunto, cuerpo) VALUES (?, ?, ?, ?, ?)`,
+    [correo.tipo, correo.claveUnica ?? null, correo.destinatarios.join(','), correo.asunto.slice(0, 200), correo.cuerpoHtml]
   );
-  return r.insertId;
+  return r.affectedRows === 0 ? 0 : r.insertId;
 }
 
 export interface ResultadoCola {

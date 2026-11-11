@@ -108,11 +108,18 @@ describe('cliente de PayPal', () => {
         next_billing_time: '2026-12-01T00:00:00Z',
         failed_payments_count: 2,
         outstanding_balance: { value: '60.00' },
-        cycle_executions: [{ tenure_type: 'TRIAL', cycles_remaining: 0, cycles_completed: 1 }, { tenure_type: 'REGULAR', cycles_remaining: 0, cycles_completed: 0 }],
+        last_payment: { time: '2026-11-01T00:00:00Z' },
+        cycle_executions: [{ tenure_type: 'TRIAL', cycles_remaining: 0, cycles_completed: 1 }, { tenure_type: 'REGULAR', cycles_remaining: 0, cycles_completed: 1 }],
       },
     });
     expect(s).toMatchObject({ estado: 'ACTIVE', customId: 'abc', correoSuscriptor: 'a@b.test', pagosFallidos: 2, saldoPendiente: 60, enPrueba: false });
-    expect(mapearSuscripcion({ id: 'I', status: 'ACTIVE', plan_id: 'P', billing_info: { cycle_executions: [{ tenure_type: 'TRIAL', cycles_remaining: 1 }] } }).enPrueba).toBe(true);
+    // Forma REAL que devuelve PayPal en plena prueba: el ciclo de prueba ya figura completado y aún no hay cobros regulares.
+    const enPlenaPrueba = { id: 'I', status: 'ACTIVE' as const, plan_id: 'P', billing_info: { next_billing_time: '2026-12-11T10:00:00Z', cycle_executions: [{ tenure_type: 'TRIAL', cycles_completed: 1, cycles_remaining: 0 }, { tenure_type: 'REGULAR', cycles_completed: 0, cycles_remaining: 0 }] } };
+    expect(mapearSuscripcion(enPlenaPrueba).enPrueba).toBe(true);
+    // Ya cobró el primer ciclo regular: deja de estar en prueba.
+    expect(mapearSuscripcion({ ...enPlenaPrueba, billing_info: { ...enPlenaPrueba.billing_info, last_payment: { time: '2026-12-11T10:05:00Z' }, cycle_executions: [{ tenure_type: 'TRIAL', cycles_completed: 1 }, { tenure_type: 'REGULAR', cycles_completed: 1 }] } }).enPrueba).toBe(false);
+    // Un plan sin período de prueba (reactivación) nunca está "en prueba".
+    expect(mapearSuscripcion({ id: 'I', status: 'ACTIVE', plan_id: 'P', billing_info: { cycle_executions: [{ tenure_type: 'REGULAR', cycles_completed: 0 }] } }).enPrueba).toBe(false);
     expect(mapearSuscripcion({ id: 'I', status: 'ACTIVE', plan_id: 'P' })).toMatchObject({ enPrueba: false, pagosFallidos: 0, saldoPendiente: 0, proximoCobro: null, customId: null });
   });
 });

@@ -39,6 +39,7 @@ function fecha(valor: string | undefined): Date | null {
 export function mapearSuscripcion(r: RespuestaSuscripcion): SuscripcionPaypal {
   const info = r.billing_info;
   const prueba = info?.cycle_executions?.find((c) => c.tenure_type === 'TRIAL');
+  const regular = info?.cycle_executions?.find((c) => c.tenure_type === 'REGULAR');
   return {
     id: r.id,
     estado: r.status,
@@ -49,7 +50,10 @@ export function mapearSuscripcion(r: RespuestaSuscripcion): SuscripcionPaypal {
     ultimoPagoEn: fecha(info?.last_payment?.time),
     pagosFallidos: info?.failed_payments_count ?? 0,
     saldoPendiente: Number(info?.outstanding_balance?.value ?? 0) || 0,
-    enPrueba: prueba !== undefined && (prueba.cycles_remaining ?? 0) > 0,
+    // PayPal da por "completado" el ciclo de prueba (de 0 dólares) desde el primer momento, así que NO sirve mirar sus
+    // ciclos restantes. Se está en prueba mientras el plan la tenga y todavía no se haya cobrado ni un ciclo regular
+    // (comprobado con una suscripción real de pruebas, 2026-11-11).
+    enPrueba: prueba !== undefined && regular !== undefined && (regular.cycles_completed ?? 0) === 0 && !info?.last_payment,
   };
 }
 

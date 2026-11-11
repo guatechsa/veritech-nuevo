@@ -1,0 +1,65 @@
+name: Integración continua
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    services:
+      # Misma versión que producción (MariaDB 10.11). Efímera: se crea y se destruye en cada corrida.
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: ci_clave_efimera
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      BD_HOST: 127.0.0.1
+      BD_PUERTO: 3306
+      BD_USUARIO: root
+      BD_CLAVE: ci_clave_efimera
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Backend - instalar
+        working-directory: backend
+        run: npm ci
+      - name: Backend - tipos
+        working-directory: backend
+        run: npm run typecheck
+      - name: Backend - pruebas (con base de datos real)
+        working-directory: backend
+        run: npm test
+      - name: Backend - compilar
+        working-directory: backend
+        run: npm run build
+
+      - name: Frontend - instalar
+        working-directory: frontend
+        run: npm ci
+      - name: Frontend - tipos
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Frontend - pruebas (formato de fechas del estándar §18)
+        working-directory: frontend
+        run: npm test
+      - name: Frontend - compilar
+        working-directory: frontend
+        run: npm run build
+
+  # El despliegue (con compuerta: solo si "pruebas" pasó) se agrega en la Fase 0 cuando exista el sitio de pruebas.

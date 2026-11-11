@@ -1,0 +1,58 @@
+# 12 — Portal del cliente, citas por enlace, enlaces públicos y QR · LEÍDO COMPLETO
+
+Leído: `portalService` (213), `portalAuthService` (139), `portalConfigService` (34), `portalController`, `routes/portal`, `middleware/portalAuth` (62), `shareController` (543), `routes/share` (69), `citaConfirmacionController` (69) y su servicio (módulo 10), `publicEquipo` (QR, 34), `equipoHistorialService` (300), `publicRateLimit` (59), y en pantalla `PortalCliente.tsx` (438), `PublicOrderAccount` (210), `PublicChecklistView` (247), `ShareLinksModal` (281), `PublicMaintenanceConfirm` (módulo 10). Revisado por referencia: `fileUrls` (fotos con URL firmada, V3.082) y `equipoHistorialHtml`.
+
+## Qué hace (se conserva)
+- **Portal del cliente** (`<taller>.veritech.lat/cliente`): el cliente entra con el correo que el taller tiene registrado y un código de 6 dígitos (10 minutos, un solo uso, 5 intentos, máximo 3 códigos cada 15 minutos). Ve "En el taller" (avance de lo que está pasando), "Mis equipos" (lecturas, próximo mantenimiento, historial) y "Mis citas". Sin precios, horas, notas internas ni nombres de técnicos. Apagado por defecto.
+- **Seguridad bien pensada:** el token del portal se firma con **otra llave** (un token de cliente nunca vale en las rutas del personal), se comprueba el taller y el cliente en cada petición, el mismo 404 para un equipo ajeno o inexistente, y la misma respuesta exista o no el correo. Se conserva todo.
+- **Enlaces públicos por orden** (checklist y cuenta): vigencia de 30 días, se pueden revocar, registran quién los creó y cuántas veces se abrieron, no muestran técnicos ni notas internas, enmascaran correo y teléfono del cliente, y las fotos van con URL firmada de corta vida. La cuenta lleva precios solo si se marca "Incluir costos".
+- **QR de historial del equipo:** historial sin login con el código que va impreso en el equipo (decisión de Luis del 26-oct: sin nombre del cliente, sin precios, ni nombre del taller externo). El portal reutiliza la misma función de historial después de comprobar que el equipo es del cliente: bien hecho.
+- **Límites por IP** para las rutas sin sesión.
+
+## Hallazgos
+1. **El cliente es "un correo".** La entrada y el acceso dependen del único campo de correo del cliente. Quien tiene ese buzón ve **todos** los equipos de todos los clientes con ese correo. No existen personas de contacto: una flota con jefe de mantenimiento, supervisor y pilotos no puede dar vistas distintas (el jefe ve todo, el piloto solo su unidad), y cambiar el correo del cliente cambia quién entra.
+2. **La sesión no se puede cerrar desde el servidor.** Dura 8 horas, el token vive en el navegador y "Salir" solo lo borra allí; no hay lista de sesiones ni bitácora de quién entró y cuándo. La tabla de códigos crece sin limpieza.
+3. **El portal es de solo lectura y muy corto:** el cliente no puede pedir una cita (etapa 2 pendiente), autorizar o rechazar un trabajo adicional, ver las fotos o los checklists de su equipo, ver o bajar la cuenta, dejar un mensaje, ni ver el estado de un repuesto que se está esperando. Para todo eso hay otros canales con reglas distintas.
+4. **Cinco canales, cinco reglas:** el portal (correo + código), el enlace por orden (checklist), el enlace por orden (cuenta), el QR del equipo y el enlace de cita en el aviso. Cada uno decide por su cuenta qué muestra, cuánto dura, cómo se revoca y qué se registra; ninguno deja un historial único de "qué vio el cliente".
+5. **La "cuenta" pública no es un documento:** muestra los datos **en vivo** de la orden (si alguien edita la orden después, el cliente ve otra cosa), sin folio ni fecha de emisión; **suma las líneas sin descuento ni IVA** (que hoy solo existen en pantalla, módulo 6), así que el total puede no coincidir con lo cobrado; clasifica "mano de obra" y "repuestos" por el texto `tipo_trabajo` y no por el tipo de línea (los trabajos con terceros caen en mano de obra); el color verde se decide comparando el texto "Completada".
+6. **Las páginas públicas no dicen de quién son:** ni nombre, ni logo, ni NIT o dirección del taller; el pie dice "Generado por Veritech". Contradice lo acordado en reportes: todo documento lleva el nombre de la empresa y la fecha y hora de emisión.
+7. **El contador de aperturas se infla:** cuenta cada carga de la página, incluidas las vistas previas automáticas de WhatsApp o del correo; no distingue la primera apertura, no guarda dispositivo ni IP y el taller no recibe aviso cuando el cliente por fin lo abre.
+8. **Detalles de los enlaces:** vigencia fija de 30 días (no configurable); si se cambia la opción de costos se crea otro enlace y el anterior sigue vivo; el enlace completo se arma con la cabecera `Origin` de quien lo genera (otra vez, en vez del generador central); el botón de WhatsApp abre un chat en blanco, no el del cliente aunque el teléfono ya esté en la orden.
+9. **El portal calcula el "próximo mantenimiento" de todos los equipos en cada visita** y hereda los defectos del módulo 10 (el estado "sin datos" para un servicio ya pasado, que la pantalla del portal remienda por su cuenta). Textos internos como el nombre del estado de la orden ("Cita programada") llegan tal cual al cliente.
+10. **Las citas del portal** salen de órdenes en estado CITA (se reemplazan por la tabla de citas del módulo 7). El nombre del taller se consulta a la plataforma en cada llamada (hasta cuatro veces por pantalla).
+11. **El avance es "trabajos terminados entre trabajos totales"**, sin ponderar por horas: una orden con un trabajo largo y diez cortos marca 90 % con el largo sin empezar.
+12. **QR:** el código lleva el id de la empresa en base 36 (revela cuántas empresas hay y su orden); el historial muestra placa, VIN y número interno a quien escanee. Ambas cosas son decisiones tomadas por Luis; se dejan anotadas.
+
+## Diseño nuevo (propuesta)
+- **Un solo "Centro del cliente"** con una identidad y reglas únicas para los cinco canales: qué se muestra, cuánto dura, cómo se revoca, branding de la empresa y **una bitácora única** ("quién vio qué y cuándo") visible en la ficha del cliente.
+- **Contactos por cliente:** personas con nombre, correo, teléfono y rol (aprobador, consulta, piloto) y acceso a **todos los equipos o a algunos**. En un taller comercial con clientes particulares sigue siendo un solo contacto, sin trabajo extra. Sesiones listables y revocables.
+- **Portal más completo (por etapas):** (1) lo de hoy; (2) **solicitar cita** según el modo de citas y el cupo de la empresa (módulo 7), que la recepción confirma; (3) **autorizar o no autorizar** hallazgos, trabajos adicionales y presupuestos, con motivo y registro de fecha, hora y dispositivo (resuelve el caso del cliente que no autoriza por precio, repuesto o tiempo, módulo 9); (4) ver y descargar **cuentas e informes emitidos**, fotos antes/después y checklists terminados; (5) estado de su **pedido especial y reservas** ("su repuesto llegó, venga a instalarlo"), con aviso por correo; (6) para flotas, **actualizar la lectura** de sus contadores; (7) mensajes simples al taller.
+- **Documentos emitidos:** la cuenta y el informe se **emiten** (instantánea con folio, empresa, fecha y hora, descuento e IVA iguales a lo cobrado); el enlace sirve ese documento; si la orden cambia se emite una versión nueva y se avisa que reemplaza a la anterior.
+- **Enlaces:** vigencia configurable por empresa, "revocar todos los de esta orden", aviso al responsable en la **primera apertura real** (sin contar vistas previas automáticas), enlace con el generador central y botón de WhatsApp directo al teléfono del cliente.
+- **Avance ponderado por horas** de los trabajos, y lenguaje del cliente (estados traducidos, no los internos).
+- **Cargas diferidas:** el portal calcula solo lo que se muestra; el nombre del taller sale de la sesión.
+- **QR:** se conserva el historial público tal como lo decidió Luis; el código deja de llevar el id de la empresa legible (la empresa se resuelve con una tabla en la plataforma).
+- **Opcional de entrada:** protección anti-robot (Turnstile) al pedir el código, como en el resto de GUATECH.
+- **Fase posterior:** canal por WhatsApp para códigos y avisos.
+
+## Decisiones necesarias de Luis
+1. **Contactos por cliente.** Recomiendo personas de contacto con acceso a todos o a algunos equipos (para flotas), y un solo contacto cuando el cliente es un particular. ¿De acuerdo?
+2. **Autorización por el cliente.** Recomiendo que los hallazgos, trabajos adicionales y presupuestos se puedan autorizar o rechazar (con motivo) desde el portal o por enlace, con registro de fecha, hora y dispositivo. ¿De acuerdo?
+3. **Solicitar cita desde el portal.** Recomiendo que el cliente pida el día y la hora según el modo de citas de la empresa y el cupo, y que la recepción confirme (como ya se había definido). ¿Se mantiene?
+4. **Documentos emitidos.** Recomiendo que la cuenta y el informe sean documentos emitidos, con folio, nombre, logo y NIT de la empresa, fecha y hora, y los mismos descuentos e IVA de lo cobrado. ¿De acuerdo? Pregunta importante aparte: ¿el sistema emite la **factura electrónica (FEL)** de la SAT, o la cuenta es solo una proforma y el taller factura por su lado? Esa respuesta cambia el diseño de cobros.
+5. **Qué ve el cliente de su equipo.** Recomiendo mostrar checklists terminados (sin notas internas) y fotos de antes y después, además de lo que ve hoy. ¿De acuerdo, o prefiere que el taller elija caso por caso qué comparte?
+6. **Pedidos especiales y reservas.** ¿Aprueba que el portal y un correo avisen al cliente cuando llegue su repuesto, desde la reserva ligada a su orden?
+7. **Lecturas desde el portal.** Para flotas, ¿el cliente puede actualizar la lectura de kilómetros u horas de sus equipos? (Alimenta los servicios programados; se marcaría quién la ingresó.)
+8. **Enlaces.** Recomiendo vigencia configurable (por defecto 30 días) y aviso al responsable de la orden en la primera apertura real. ¿De acuerdo?
+
+
+---
+# Decisiones de Luis sobre portal y enlaces (2026-11-11)
+1. **Contactos por cliente:** de acuerdo (personas de contacto con acceso a todos o algunos equipos; un solo contacto en particulares).
+2. **Autorización por el cliente:** de acuerdo (hallazgos, trabajos adicionales y presupuestos, con motivo y registro de fecha, hora y dispositivo).
+3. **Solicitar cita desde el portal:** de acuerdo (según modo de citas y cupo; la recepción confirma).
+4. **Documentos emitidos:** de acuerdo (folio, nombre/logo/NIT de la empresa, fecha y hora, descuento e IVA iguales a lo cobrado). **El sistema NO emite factura electrónica (FEL) de la SAT:** Luis espera que el taller tenga su propio sistema POS. Por lo tanto la cuenta y el informe son documentos propios del taller, **no son factura**, y deben decirlo.
+5. **Qué ve el cliente de su equipo:** el cliente tiene derecho a ver **todo lo del vehículo de su propiedad**, salvo lo interno: **costos** y **datos operativos del taller** (tiempos de inicio y fin, datos del técnico, etc.). Regla general, no caso por caso: se muestra todo lo del equipo y se oculta lo interno.
+6. **Pedido especial / reservas:** el portal envía un correo cuando el material **queda cargado a la orden de trabajo** de tipo MATERIAL PENDIENTE (o nombre similar), es decir, cuando hay repuestos de importación con reserva y cero existencia y el material por fin llega y se carga.
+7. **Lecturas desde el portal:** se extiende a **cualquier cliente**, no solo flotas: al solicitar una cita, el cliente puede dar el valor actual del contador (kilometraje u horas).
+8. **Enlaces:** de acuerdo (vigencia configurable, 30 días por defecto; aviso al responsable en la primera apertura real).

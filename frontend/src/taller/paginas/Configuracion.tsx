@@ -9,6 +9,7 @@ import { dinero } from '../../admin/tipos';
 import { fechaHoraLocal } from '../../utils/hora';
 import { useSesionTaller } from '../Sesion';
 import { Colaboradores } from './config/Colaboradores';
+import { CatalogosDeTrabajo } from './config/Catalogos';
 import { Bitacora, General } from './config/General';
 import { AreasYBodegas, Sucursales } from './config/Estructura';
 import { JornadaYAusencias } from './config/Jornada';
@@ -162,12 +163,12 @@ type Pestana = { clave: string; texto: string; permiso?: string; vista: () => Re
 /** Todo lo que se configura vive aquí, en pestañas (estándar §13: el menú es de un solo nivel). Cada una aparece según los permisos. */
 const PESTANAS: Pestana[] = [
   { clave: 'general', texto: 'General', permiso: 'configuracion.ver', vista: () => <General /> },
-  { clave: 'sucursales', texto: 'Sucursales', permiso: 'sucursales.ver', vista: () => <Sucursales /> },
-  { clave: 'areas', texto: 'Áreas y bodegas', permiso: 'areas.ver', vista: () => <AreasYBodegas /> },
+  { clave: 'estructura', texto: 'Sucursales y áreas', permiso: 'sucursales.ver', vista: () => <div className="space-y-8"><Sucursales /><AreasYBodegas /></div> },
   { clave: 'colaboradores', texto: 'Colaboradores', permiso: 'colaboradores.ver', vista: () => <Colaboradores /> },
   { clave: 'puestos', texto: 'Puestos y credenciales', permiso: 'colaboradores.ver', vista: () => <PuestosYCredenciales /> },
   { clave: 'roles', texto: 'Roles y permisos', permiso: 'roles.ver', vista: () => <Roles /> },
   { clave: 'jornada', texto: 'Jornada y ausencias', permiso: 'colaboradores.ver', vista: () => <JornadaYAusencias /> },
+  { clave: 'catalogos', texto: 'Catálogos de trabajo', permiso: 'catalogos.ver', vista: () => <CatalogosDeTrabajo /> },
   { clave: 'suscripcion', texto: 'Suscripción y pagos', permiso: 'suscripcion.ver', vista: () => <PestanaSuscripcion /> },
   { clave: 'bitacora', texto: 'Bitácora', permiso: 'bitacora.ver', vista: () => <Bitacora /> },
   { clave: 'cuenta', texto: 'Mi cuenta', vista: () => <PestanaCuenta /> },

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProveedorUbicacion, UbicacionTaller } from './contexto';
 import LayoutTaller from './Layout';
 import { PaginaEntrarSoporte, PaginaIngresar, PaginaRecuperar, PaginaRestablecer } from './paginas/Acceso';
+import Clientes from './paginas/Clientes';
 import Configuracion from './paginas/Configuracion';
 import Inicio from './paginas/Inicio';
 import { ProveedorSesionTaller } from './Sesion';
@@ -21,6 +22,7 @@ export default function TallerApp({ ubicacion }: { ubicacion: UbicacionTaller })
           <Route path="entrar-soporte" element={<PaginaEntrarSoporte />} />
           <Route element={<LayoutTaller />}>
             <Route index element={<Inicio />} />
+            <Route path="clientes" element={<Clientes />} />
             <Route path="configuracion" element={<Configuracion />} />
           </Route>
           <Route path="*" element={<Navigate to={ubicacion.base || '/'} replace />} />

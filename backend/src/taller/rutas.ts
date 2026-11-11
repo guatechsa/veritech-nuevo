@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { ErrorApp } from '../errores';
 import { Contexto, ipDe } from '../plataforma/contexto';
 import { origenDe, validar } from './comun';
+import { montarRutasCatalogos } from './rutas-catalogos';
+import { montarRutasClientes } from './rutas-clientes';
 import { montarRutasEstructura } from './rutas-estructura';
 import { exigirTurnstile } from '../utils/turnstile';
 import { canjearAccesoSoporte, cambiarContrasena, cerrarSesion, ingresar, perfilDeSesion, restablecerContrasena, solicitarRecuperacion } from './auth';
@@ -102,6 +104,8 @@ export function crearRutasTaller(ctx: Contexto): Router {
   });
 
   montarRutasEstructura(router, ctx);
+  montarRutasCatalogos(router, ctx);
+  montarRutasClientes(router, ctx);
 
   return router;
 }

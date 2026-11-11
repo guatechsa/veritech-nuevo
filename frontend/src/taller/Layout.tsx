@@ -1,4 +1,4 @@
-import { CircleAlert, Home, KeyRound, LifeBuoy, LogOut, Menu, Settings, Wrench, X } from 'lucide-react';
+import { CircleAlert, Home, KeyRound, LifeBuoy, LogOut, Menu, Settings, Users, Wrench, X } from 'lucide-react';
 import { FormEvent, ReactNode, useState } from 'react';
 import { NavLink, Navigate, Outlet } from 'react-router-dom';
 import Button from '../components/ui-guatech/Button.jsx';
@@ -98,6 +98,7 @@ function CambiarContrasena({ alCerrar }: { alCerrar: () => void }) {
  */
 const MENU: Array<{ a: string; etiqueta: string; icono: typeof Home; permiso?: string; fin?: boolean }> = [
   { a: '', etiqueta: 'Inicio', icono: Home, fin: true },
+  { a: '/clientes', etiqueta: 'Clientes', icono: Users, permiso: 'clientes.ver' },
   { a: '/configuracion', etiqueta: 'Configuración', icono: Settings },
 ];
 

@@ -16,7 +16,7 @@ export interface DependenciasApp {
 
 const manejadorDeErrores: ErrorRequestHandler = (error, _req, res, _next) => {
   if (error instanceof ErrorApp) {
-    res.status(error.estado).json({ success: false, codigo: error.codigo, error: error.message });
+    res.status(error.estado).json({ success: false, codigo: error.codigo, error: error.message, ...(error.detalle !== undefined ? { detalle: error.detalle } : {}) });
     return;
   }
   // Un cuerpo que no es JSON válido o es demasiado grande es un error de quien llama, no del servidor.

@@ -11,7 +11,11 @@ import { Actor, bitacora, conflictoSiDuplicado, TallerReq } from './comun';
  */
 export interface Campo {
   col: string;
-  tipo: 'texto' | 'codigo' | 'bool' | 'entero';
+  tipo: 'texto' | 'codigo' | 'bool' | 'entero' | 'opcion' | 'porcentaje' | 'color';
+  /** Valores permitidos (tipo 'opcion'). */
+  opciones?: string[];
+  /** El valor no se puede cambiar después de crearlo (los códigos). */
+  inmutable?: boolean;
   requerido?: boolean;
   max?: number;
   min?: number;
@@ -45,6 +49,15 @@ function zodDe(c: Campo, parcial: boolean): ZodType {
     case 'entero':
       z0 = z.number().int().min(c.min ?? 0).max(c.max ?? 1_000_000);
       break;
+    case 'opcion':
+      z0 = z.enum((c.opciones ?? ['']) as [string, ...string[]]);
+      break;
+    case 'porcentaje':
+      z0 = z.number().min(0).max(100);
+      break;
+    case 'color':
+      z0 = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
+      break;
   }
   return parcial || !c.requerido ? z0.optional() : z0;
 }
@@ -66,6 +79,9 @@ function valorBd(c: Campo, v: unknown): unknown {
     case 'bool':
       return v ? 1 : 0;
     case 'entero':
+    case 'opcion':
+    case 'porcentaje':
+    case 'color':
       return v;
   }
 }
@@ -113,6 +129,8 @@ export function crearCatalogo(def: DefCatalogo) {
       const valores: unknown[] = [];
       for (const c of def.campos) {
         if (cambios[c.col] === undefined) continue;
+        if (c.inmutable && valorBd(c, cambios[c.col]) !== antes[c.col]) throw new ErrorApp(409, 'REGLA', `El ${c.col} no se puede cambiar una vez creado.`);
+        if (c.inmutable) continue;
         sets.push(`${c.col} = ?`);
         valores.push(valorBd(c, cambios[c.col]));
       }
@@ -175,6 +193,7 @@ export async function eliminarNivel(t: TallerReq, actor: Actor, id: number): Pro
   const uso = await una<{ n: number }>(t.pool, 'SELECT COUNT(*) AS n FROM colaboradores WHERE nivel_tecnico_id = ?', [id]);
   if (Number(uso?.n) > 0) throw new ErrorApp(409, 'EN_USO', 'No se puede eliminar un nivel que tienen colaboradores. Cámbieles el nivel primero.');
   await transaccion(t.pool, async (con) => {
+    await ejecutar(con, 'DELETE FROM matriz_tecnico_sistema WHERE nivel_tecnico_id = ?', [id]);
     await ejecutar(con, 'DELETE FROM niveles_tecnico WHERE id = ?', [id]);
     await bitacora(con, actor, { accion: 'niveles_tecnico_eliminado', entidad: 'niveles_tecnico', entidadId: id, antes: nivel });
   });

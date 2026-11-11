@@ -6,6 +6,7 @@ import { actualizarColaborador, actualizarCredencial, cambiarEstadoColaborador, 
 import { actorDe, idDe, validar } from './comun';
 import { guardarConfiguracion, leerConfiguracion, listarBitacora, metadatosDeConfiguracion } from './configuracion';
 import { actualizarAusencia, crearAusencia, eliminarAusencia, guardarJornada, jornadaEfectiva, listarAusencias, obtenerJornada } from './jornada';
+import { sembrarMatrizDeNivel } from './catalogos-trabajo';
 import { actualizarBodega, actualizarSucursal, crearBodega, crearSucursal, DEF_PUESTOS, guardarCredencialesDePuesto, listarBodegas, listarPuestos, listarSucursales, obtenerSucursal, puestosBase } from './estructura';
 import { actualizarRol, crearRol, listarPermisos, listarRoles, obtenerRol } from './roles';
 import { exigirPermiso } from './sesion';
@@ -102,7 +103,9 @@ export function montarRutasEstructura(router: Router, ctx: Contexto): void {
     res.json({ success: true, data: await niveles.listar(taller(req), true) });
   });
   router.post('/niveles-tecnico', exigirPermiso('configuracion.editar'), async (req, res) => {
-    res.status(201).json({ success: true, data: await niveles.crear(taller(req), actorDe(req), validar(esquemaCatalogo(NIVELES_TECNICO, false), req.body) as Record<string, unknown>) });
+    const creado = await niveles.crear(taller(req), actorDe(req), validar(esquemaCatalogo(NIVELES_TECNICO, false), req.body) as Record<string, unknown>);
+    await sembrarMatrizDeNivel(taller(req), Number(creado['id']));
+    res.status(201).json({ success: true, data: creado });
   });
   router.patch('/niveles-tecnico/:id', exigirPermiso('configuracion.editar'), async (req, res) => {
     res.json({ success: true, data: await niveles.actualizar(taller(req), actorDe(req), idDe(req), validar(esquemaCatalogo(NIVELES_TECNICO, true), req.body) as Record<string, unknown>) });

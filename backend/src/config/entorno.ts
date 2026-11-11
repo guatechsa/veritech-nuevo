@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const nombreDeBase = z.string().regex(/^[a-z0-9_]+$/, 'solo letras minúsculas, números y guion bajo');
+const textoOpcional = z.string().optional().transform((v) => (v === undefined || v === '' ? undefined : v));
 
 const esquema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -13,6 +14,19 @@ const esquema = z.object({
   BD_PLATAFORMA: nombreDeBase.default('veritech_plataforma'),
   /** Prefijo de la base de cada taller: veritech_<slug>. */
   PREFIJO_BD_TALLER: nombreDeBase.default('veritech_'),
+  /** Llave con la que se firman las sesiones. Mínimo 32 caracteres. */
+  JWT_SECRETO: z.string().min(32, 'debe tener al menos 32 caracteres'),
+  /** Dirección pública del panel de administración (para los enlaces de los correos). */
+  URL_PANEL: z.string().url().default('http://localhost:5180/admin'),
+  /** Correo saliente. Si no se configura, los correos quedan en la cola sin enviarse. */
+  SMTP_HOST: textoOpcional,
+  SMTP_PUERTO: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SEGURO: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  SMTP_USUARIO: textoOpcional,
+  SMTP_CLAVE: textoOpcional,
+  SMTP_DESDE: z.string().default('VERI-TECH <noreply@veritech.lat>'),
+  /** Casilla anti-robots de Cloudflare para formularios públicos. Si falta, no se exige (como en el sistema actual). */
+  TURNSTILE_SECRET: textoOpcional,
 });
 
 export type Entorno = z.infer<typeof esquema>;

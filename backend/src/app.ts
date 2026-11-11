@@ -1,11 +1,15 @@
 import express, { ErrorRequestHandler, Express, Request, Response } from 'express';
 import helmet from 'helmet';
 import { ErrorApp } from './errores';
+import { Contexto } from './plataforma/contexto';
+import { crearRutasPlataforma } from './plataforma/rutas';
 import { APP_VERSION } from './version';
 
 export interface DependenciasApp {
   /** Comprueba que la base de datos responde (se inyecta para poder probar sin base real). */
   verificarBase: () => Promise<boolean>;
+  /** Contexto del panel de plataforma (base de datos y configuración). */
+  plataforma?: Contexto;
 }
 
 const manejadorDeErrores: ErrorRequestHandler = (error, _req, res, _next) => {
@@ -42,6 +46,8 @@ export function crearApp(dependencias: DependenciasApp): Express {
   };
   app.get('/health', salud);
   app.get('/api/health', salud);
+
+  if (dependencias.plataforma) app.use('/api/plataforma', crearRutasPlataforma(dependencias.plataforma));
 
   app.use((_req, res) => {
     res.status(404).json({ success: false, codigo: 'NO_ENCONTRADO', error: 'No encontrado' });

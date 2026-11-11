@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
+  globalSetup: '<rootDir>/tests/global-setup.js',
   setupFiles: ['<rootDir>/tests/cargar-env.js'],
   testTimeout: 30000,
   // Las pruebas con base de datos comparten el servidor; se corren en serie (--runInBand).

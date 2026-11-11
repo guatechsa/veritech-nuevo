@@ -87,7 +87,8 @@ export function crearProveedorPaypal(entorno: Entorno, fetchFn: Fetch = fetch): 
   return {
     async obtenerSuscripcion(id) {
       const r = await llamar('GET', `/v1/billing/subscriptions/${exigirId(id)}`);
-      if (r.status === 404) return null;
+      // PayPal contesta 404 a un identificador bien formado que no existe y 400 a uno mal formado: para nosotros, ambos son "no existe".
+      if (r.status === 404 || r.status === 400) return null;
       if (!r.ok) throw new Error(`PayPal respondió ${r.status} al consultar la suscripción`);
       return mapearSuscripcion((await r.json()) as RespuestaSuscripcion);
     },

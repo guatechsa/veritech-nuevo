@@ -49,9 +49,10 @@ describe('cliente de PayPal', () => {
   });
 
   it('una suscripción que no existe devuelve null, pero un error de PayPal lanza (no se confunden)', async () => {
-    const f = fetchSimulado([TOKEN, { estado: 404 }, { estado: 500 }]);
+    const f = fetchSimulado([TOKEN, { estado: 404 }, { estado: 400 }, { estado: 500 }]);
     const p = crearProveedorPaypal(entorno(), f.fn)!;
     expect(await p.obtenerSuscripcion('I-NO')).toBeNull();
+    expect(await p.obtenerSuscripcion('I-MALFORMADO')).toBeNull(); // PayPal responde 400 a un identificador mal formado
     await expect(p.obtenerSuscripcion('I-1')).rejects.toThrow('PayPal respondió 500');
   });
 

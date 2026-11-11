@@ -29,7 +29,7 @@ echo "== Retirando archivos viejos de assets (los que ya no están en esta compi
 (cd frontend/dist/assets && ls) | $SSH "cd $DOCROOT/assets && cat > /tmp/assets_vigentes.txt && for f in *; do grep -qxF \"\$f\" /tmp/assets_vigentes.txt || { echo \"  - \$f\"; rm -f \"\$f\"; }; done; rm -f /tmp/assets_vigentes.txt"
 
 echo "== Dependencias, migraciones y reinicio"
-$SSH "set -e; cd $APP/backend; sudo -u $CUENTA npm ci --omit=dev --silent; sudo -u $CUENTA node dist/cli/migrar.js plataforma; \
+$SSH "set -e; cd $APP/backend; sudo -u $CUENTA npm ci --omit=dev --silent; sudo -u $CUENTA node dist/cli/migrar.js plataforma; sudo -u $CUENTA node dist/cli/migrar.js talleres; \
   if sudo -u $CUENTA $PM2 describe veritech-pruebas >/dev/null 2>&1; then sudo -u $CUENTA $PM2 restart veritech-pruebas --update-env >/dev/null; \
   else sudo -u $CUENTA $PM2 start dist/index.js --name veritech-pruebas --cwd $APP/backend >/dev/null; fi; sudo -u $CUENTA $PM2 save >/dev/null"
 

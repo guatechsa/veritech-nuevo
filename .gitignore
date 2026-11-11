@@ -8,3 +8,6 @@ coverage/
 .DS_Store
 Thumbs.db
 .claude/worktrees/
+
+# Credenciales locales de pruebas (nunca se suben)
+*.local.txt

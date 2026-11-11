@@ -289,7 +289,7 @@ describe('perfil (/auth/yo)', () => {
     expect(r.status).toBe(200);
     const d = r.body.data;
     expect(d.usuario).toMatchObject({ nombre: 'JOSE PEREZ', roles: [{ codigo: 'administrador', nombre: 'ADMINISTRADOR' }], sucursal: { nombre: 'SUCURSAL PRINCIPAL' } });
-    expect(d.empresa).toMatchObject({ estado: 'prueba', zona_horaria: 'America/Guatemala', plan: 'PROFESIONAL' });
+    expect(d.empresa).toMatchObject({ estado: 'prueba', zona_horaria: 'America/Guatemala', moneda: 'GTQ', plan: 'PROFESIONAL' });
     expect(d.soporte).toBe(false);
     expect(d.modulos).toContain('equipos');
     expect(d.avisos.prueba_hasta).not.toBeNull();

@@ -6,7 +6,7 @@ export interface PerfilTaller {
   permisos: string[];
   modulos: string[];
   soporte: boolean;
-  empresa: { nombre: string; slug: string; estado: string; zona_horaria: string; plan: string | null; cobro_por_contrato: boolean };
+  empresa: { nombre: string; slug: string; estado: string; zona_horaria: string; moneda: string; plan: string | null; cobro_por_contrato: boolean };
   avisos: { prueba_hasta: string | null; gracia_hasta: string | null; acceso_hasta: string | null; exportable_hasta: string | null };
 }
 

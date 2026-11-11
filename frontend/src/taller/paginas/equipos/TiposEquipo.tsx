@@ -4,7 +4,6 @@ import Badge from '../../../components/ui-guatech/Badge.jsx';
 import Button from '../../../components/ui-guatech/Button.jsx';
 import Modal from '../../../components/ui-guatech/Modal.jsx';
 import Tabla, { Columna } from '../../../admin/componentes/Tabla';
-import { dinero } from '../../../admin/tipos';
 import { CatalogoSimple } from '../../componentes/CatalogoSimple';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, Seccion, Si, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
@@ -130,7 +129,9 @@ function FormTipo({ inicial, alCerrar, alGuardar }: { inicial: TipoEquipo | null
 }
 
 export function TiposEquipo() {
-  const { api, tiene } = useSesionTaller();
+  const { api, tiene, perfil } = useSesionTaller();
+  const moneda = perfil?.empresa.moneda ?? 'GTQ';
+  const dinero = (n: number): string => `${moneda === 'USD' ? 'US$' : 'Q'} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const lista = useLista(() => api.get<TipoEquipo[]>('/tipos-equipo?inactivos=true'), [api]);
   const [editando, setEditando] = useState<TipoEquipo | 'nuevo' | null>(null);
   const [error, setError] = useState('');

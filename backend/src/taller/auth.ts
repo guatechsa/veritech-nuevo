@@ -21,6 +21,7 @@ const MINUTOS_BLOQUEO = 15;
 
 export type { OrigenTaller } from './comun';
 import { OrigenTaller } from './comun';
+import { leerConfiguracion } from './configuracion';
 
 interface Taller {
   empresa: EmpresaDePeticion;
@@ -196,12 +197,13 @@ export async function perfilDeSesion(t: Taller, sesion: { usuarioId: number; nom
     'SELECT s.id, s.nombre FROM colaboradores c JOIN usuarios u ON u.colaborador_id = c.id JOIN sucursales s ON s.id = c.sucursal_id WHERE u.id = ?',
     [sesion.usuarioId]
   );
+  const config = await leerConfiguracion(t);
   return {
     usuario: { id: sesion.usuarioId, nombre: sesion.nombre, correo: sesion.correo, roles: sesion.roles.map((r) => ({ codigo: r.codigo, nombre: r.nombre })), sucursal: sucursal[0] ?? null },
     permisos: [...sesion.permisos].sort(),
     modulos: [...e.modulos].sort(),
     soporte: sesion.esSoporte,
-    empresa: { nombre: e.nombre, slug: e.slug, estado: e.estado, zona_horaria: e.zonaHoraria, plan: e.planNombre, cobro_por_contrato: e.cobroPorContrato },
+    empresa: { nombre: e.nombre, slug: e.slug, estado: e.estado, zona_horaria: e.zonaHoraria, moneda: config['moneda'] ?? 'GTQ', plan: e.planNombre, cobro_por_contrato: e.cobroPorContrato },
     avisos: {
       prueba_hasta: e.estado === 'prueba' ? e.pruebaHasta : null,
       gracia_hasta: e.estado === 'pago_fallido' ? e.graciaHasta : null,

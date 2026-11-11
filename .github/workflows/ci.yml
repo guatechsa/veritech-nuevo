@@ -62,4 +62,61 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  # El despliegue (con compuerta: solo si "pruebas" pasó) se agrega en la Fase 0 cuando exista el sitio de pruebas.
+  # Despliegue al sitio de pruebas https://pruebas.veritech.lat. Compuerta: solo corre si "pruebas" pasó y solo en master.
+  # La llave SSH solo puede ejecutar /root/scripts/veritech-nuevo-pruebas-deploy.sh en el servidor (comando forzado);
+  # ese guion fijo recibe el paquete por la entrada estándar y no hace nada más.
+  desplegar-pruebas:
+    needs: pruebas
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: desplegar-pruebas
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Compilar backend
+        working-directory: backend
+        run: npm ci && npm run build
+      - name: Compilar frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+      - name: Armar el paquete
+        run: |
+          tar czf paquete.tgz backend/dist backend/package.json backend/package-lock.json database \
+            --transform 's,^frontend/dist,frontend-dist,' frontend/dist
+          ls -l paquete.tgz
+      - name: Preparar la conexión
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Desplegar
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          ssh -p "$DEPLOY_PORT" -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes root@"$DEPLOY_HOST" < paquete.tgz
+      - name: Verificar en vivo la versión publicada
+        run: |
+          VERSION=$(grep -o "'[0-9]*\.[0-9]*'" backend/src/version.ts | tr -d "'")
+          for i in 1 2 3 4 5 6; do
+            R=$(curl -s -m 10 https://pruebas.veritech.lat/health || true)
+            if echo "$R" | grep -q "\"version\":\"$VERSION\"" && echo "$R" | grep -q '"base":"ok"'; then
+              echo "OK: $R"; exit 0
+            fi
+            sleep 5
+          done
+          echo "FALLO: el sitio de pruebas no responde con la versión $VERSION. Última respuesta: $R"
+          exit 1

@@ -25,6 +25,8 @@ Corre las pruebas y la compilación del backend y del frontend; si algo falla, n
 - No toca el proceso `veritech` (versión 3.x, puerto 4000) ni `api.veritech.lat`.
 - Al crear talleres de prueba (Fase 2), el aprovisionador usará el prefijo `veritech_pruebas_` y subdominios de prueba aparte.
 
-## Pendiente (cuando exista el repositorio en GitHub)
-- Trabajo de despliegue automático en `.github/workflows/` con compuerta de pruebas (llave SSH restringida con comando forzado, como el sistema actual).
-- Agregar el sitio a la verificación semanal de aprovisionamiento del servidor.
+## Despliegue automático (desde 2026-11-11)
+Cada push a `master` corre las pruebas y, si pasan, `desplegar-pruebas` (en `.github/workflows/ci.yml`) arma el paquete y lo envía por SSH.
+- La llave de GitHub Actions (secretos `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, `DEPLOY_HOST`, `DEPLOY_PORT`) está en `/root/.ssh/authorized_keys` con `restrict,command=...`: solo puede ejecutar `/root/scripts/veritech-nuevo-pruebas-deploy.sh`. Una copia versionada de ese guion está en `scripts/servidor/` (editarla NO cambia la del servidor: hay que subirla por scp).
+- Respaldo del `authorized_keys` previo: `/root/.ssh/authorized_keys.bak_antes_veritech_nuevo_20261111`.
+- Pendiente: agregar el sitio a la verificación semanal de aprovisionamiento del servidor.

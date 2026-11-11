@@ -98,7 +98,7 @@ function DatosCliente({ detalle, alGuardar, alAbrirOtro }: { detalle: Detalle | 
       alGuardar(r.cliente.id, r.avisos);
     } catch (err) {
       if (err instanceof ErrorApi && err.codigo === 'NIT_REPETIDO') {
-        const det = (err as ErrorApi & { detalle?: { cliente: { id: number; nombre: string } } }).detalle;
+        const det = err.detalle as { cliente: { id: number; nombre: string } } | undefined;
         setNitRepetido(det?.cliente ?? null);
       }
       setError(mensajeDe(err, 'No se pudo guardar'));

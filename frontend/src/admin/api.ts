@@ -22,7 +22,9 @@ export class ErrorApi extends Error {
   constructor(
     public readonly estado: number,
     public readonly codigo: string,
-    mensaje: string
+    mensaje: string,
+    /** Datos adicionales que manda el servidor (por ejemplo, el cliente que ya tiene ese NIT). */
+    public readonly detalle?: unknown
   ) {
     super(mensaje);
   }

@@ -65,13 +65,13 @@ export function crearApiTaller(slug: string) {
     } catch {
       throw new ErrorApi(0, 'SIN_CONEXION', 'No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.');
     }
-    const json = (await respuesta.json().catch(() => null)) as { success?: boolean; data?: T; codigo?: string; error?: string } | null;
+    const json = (await respuesta.json().catch(() => null)) as { success?: boolean; data?: T; codigo?: string; error?: string; detalle?: unknown } | null;
     if (!respuesta.ok || !json?.success) {
       if (respuesta.status === 401 && token && json?.codigo === 'NO_AUTENTICADO') {
         guardarTokenTaller(slug, null);
         window.dispatchEvent(new Event(EVENTO_SESION_TALLER_VENCIDA));
       }
-      throw new ErrorApi(respuesta.status, json?.codigo ?? 'ERROR', json?.error ?? 'No se pudo completar la operación');
+      throw new ErrorApi(respuesta.status, json?.codigo ?? 'ERROR', json?.error ?? 'No se pudo completar la operación', json?.detalle);
     }
     return json.data as T;
   }

@@ -330,6 +330,7 @@ const SECCIONES: Array<{ k: string; t: string; vista: () => ReactNode }> = [
           { clave: 'es_cancelado', etiqueta: 'La cancela (anulada)', tipo: 'bool' },
         ]}
         bloqueadosSi={(f) => (f['es_sistema'] === 1 ? ['es_terminal', 'es_cancelado'] : [])}
+        sinDesactivarSi={(f) => f['es_sistema'] === 1}
         mostrar={[
           { clave: 'orden', etiqueta: 'Orden' },
           { clave: 'nombre', etiqueta: 'Estado', render: (f) => <span><span className="mr-2 inline-block h-3 w-3 rounded-full align-middle" style={{ background: String(f['color']) }} />{String(f['nombre'])}{f['es_sistema'] === 1 ? <span className="ml-2 text-xs text-gray-500">de fábrica</span> : null}</span> },

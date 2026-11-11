@@ -38,6 +38,7 @@ export function CatalogoSimple({
   alCambiar,
   bloqueadosSi,
   accionesExtra,
+  sinDesactivarSi,
 }: {
   titulo: string;
   singular: string;
@@ -50,6 +51,8 @@ export function CatalogoSimple({
   alCambiar?: () => void;
   /** Campos que no se envían ni se editan en una fila concreta (por ejemplo, las banderas de un estado de fábrica). */
   bloqueadosSi?: (f: Fila) => string[];
+  /** Filas que no se pueden desactivar (los registros de fábrica): no se ofrece el botón. */
+  sinDesactivarSi?: (f: Fila) => boolean;
   /** Acciones adicionales de cada fila (por ejemplo, «Por defecto»). */
   accionesExtra?: (f: Fila, recargar: () => void, fallar: (m: string) => void) => React.ReactNode;
 }) {
@@ -105,7 +108,7 @@ export function CatalogoSimple({
     {
       clave: 'acciones',
       etiqueta: 'Acciones',
-      render: (f) => gestiona && <Acciones>{accionesExtra?.(f, () => { lista.recargar(); alCambiar?.(); }, setError)}{conActivo && <BotonAccion onClick={() => void estado(f, f.activo !== 1)}>{f.activo ? 'Desactivar' : 'Activar'}</BotonAccion>}<BotonAccion onClick={() => abrir(f)}>Editar</BotonAccion></Acciones>,
+      render: (f) => gestiona && <Acciones>{accionesExtra?.(f, () => { lista.recargar(); alCambiar?.(); }, setError)}{conActivo && !sinDesactivarSi?.(f) && <BotonAccion onClick={() => void estado(f, f.activo !== 1)}>{f.activo ? 'Desactivar' : 'Activar'}</BotonAccion>}<BotonAccion onClick={() => abrir(f)}>Editar</BotonAccion></Acciones>,
     },
   ];
   return (

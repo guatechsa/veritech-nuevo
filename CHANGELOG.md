@@ -24,3 +24,4 @@ Formato `MAYOR.NNN` (estándar GUATECH §1). Cada cambio visible para el cliente
   - Panel: ficha de empresa con pagos y eventos, "Conciliar ahora" y "Reintentar alta"; suspender exige motivo y una suspensión manual no se levanta sola.
   - Un cuerpo que no es JSON válido ahora responde 400 (antes 500).
   - Borrado automático de la base de un taller cerrado: construido pero apagado (`BORRADO_AUTOMATICO=false`).
+- Fase 2, parte 2 — pantallas: registro público en dos pasos con botón de PayPal y espera hasta que el taller esté listo, página "Entrar" y, en el panel, detalle de cada empresa (estado, fechas, pagos, eventos, "Conciliar ahora"), lista de clientes que pagaron y cuyo taller no se creó ("Reintentar alta") y suspensión con motivo obligatorio. Guion `npm run planes:paypal-pruebas` para crear los planes de pruebas en PayPal.

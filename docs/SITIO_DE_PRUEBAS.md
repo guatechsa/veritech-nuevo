@@ -23,10 +23,28 @@ Corre las pruebas y la compilación del backend y del frontend; si algo falla, n
 ## Reglas
 - No usa las credenciales de producción: su usuario de base de datos solo ve `veritech_pruebas_*`.
 - No toca el proceso `veritech` (versión 3.x, puerto 4000) ni `api.veritech.lat`.
-- Al crear talleres de prueba (Fase 2), el aprovisionador usará el prefijo `veritech_pruebas_` y subdominios de prueba aparte.
+- Los talleres de prueba que cree el registro (Fase 2) llevan el prefijo `veritech_pruebas_` y la dirección `<nombre>.pruebas.veritech.lat`. El usuario de base de datos tiene permiso sobre `veritech_pruebas_%` (concedido 2026-11-11) y sobre nada más.
 
 ## Despliegue automático (desde 2026-11-11)
 Cada push a `master` corre las pruebas y, si pasan, `desplegar-pruebas` (en `.github/workflows/ci.yml`) arma el paquete y lo envía por SSH.
 - La llave de GitHub Actions (secretos `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, `DEPLOY_HOST`, `DEPLOY_PORT`) está en `/root/.ssh/authorized_keys` con `restrict,command=...`: solo puede ejecutar `/root/scripts/veritech-nuevo-pruebas-deploy.sh`. Una copia versionada de ese guion está en `scripts/servidor/` (editarla NO cambia la del servidor: hay que subirla por scp).
 - Respaldo del `authorized_keys` previo: `/root/.ssh/authorized_keys.bak_antes_veritech_nuevo_20261111`.
 - Pendiente: agregar el sitio a la verificación semanal de aprovisionamiento del servidor.
+
+## Registro y cobro en el sitio de pruebas (Fase 2)
+Variables del `.env` del servidor (`/home/veritech/pruebas/backend/.env`, permisos 600):
+| Variable | Valor en pruebas |
+|---|---|
+| `PREFIJO_BD_TALLER` | `veritech_pruebas_` |
+| `DOMINIO_TALLERES` | `pruebas.veritech.lat` (agregada 2026-11-11) |
+| `PAYPAL_MODO` | `sandbox` (por defecto) |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_SECRETO` | **pendientes**: aplicación de PayPal en modo de pruebas. Sin ellas el cobro está apagado: el registro lo avisa y no deja continuar |
+| `PAYPAL_WEBHOOK_ID` | opcional; sin él los avisos de PayPal se rechazan y solo manda la conciliación cada 3 horas |
+| `BORRADO_AUTOMATICO` | `false` (por defecto): al cerrar un taller su base se conserva |
+| `SMTP_*` | pendientes: sin ellos los correos quedan en la cola `correos_salida` |
+
+Para tener planes de PayPal de pruebas (30 días gratis + cobro mensual) una vez puestas las credenciales:
+```bash
+cd /home/veritech/pruebas/backend && sudo -u veritech npm run planes:paypal-pruebas
+```
+Los talleres nuevos no se pueden abrir en el navegador hasta que exista su dirección (DNS + Apache + certificado): ver la decisión pendiente en `ANALISIS/20_FASE2_ALTA_Y_COBRO.md`.

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --runInBand",
     "migrar:plataforma": "node dist/cli/migrar.js plataforma",
-    "migrar:taller": "node dist/cli/migrar.js taller"
+    "migrar:taller": "node dist/cli/migrar.js taller",
+    "planes:paypal-pruebas": "node dist/cli/crear-planes-paypal.js"
   },
   "engines": {
     "node": ">=22"

@@ -1,6 +1,6 @@
 import { CircleAlert, Home, KeyRound, LifeBuoy, LogOut, Menu, Settings, Truck, Users, Wrench, X } from 'lucide-react';
 import { FormEvent, ReactNode, useState } from 'react';
-import { NavLink, Navigate, Outlet } from 'react-router-dom';
+import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
 import Button from '../components/ui-guatech/Button.jsx';
 import Modal from '../components/ui-guatech/Modal.jsx';
 import { formatFecha } from '../components/ui-guatech/formatoFecha.js';
@@ -16,6 +16,7 @@ const fecha = (iso: string | null): string => (iso ? (formatFecha(aHoraDeGuatema
 /** Mensajes fijos arriba de la pantalla según el estado de la cuenta y el tipo de sesión. */
 function Avisos({ perfil, salir }: { perfil: PerfilTaller; salir: () => void }) {
   const { empresa, avisos } = perfil;
+  const { base } = useUbicacion();
   const filas: Array<{ clave: string; clase: string; texto: string; accion?: ReactNode }> = [];
   if (perfil.soporte) {
     filas.push({
@@ -32,7 +33,9 @@ function Avisos({ perfil, salir }: { perfil: PerfilTaller; salir: () => void }) 
     filas.push({ clave: 'cancelada', clase: 'bg-amber-100 text-amber-900', texto: `Su suscripción está cancelada. Puede seguir trabajando hasta el ${fecha(avisos.acceso_hasta)}; después tendrá 30 días para descargar sus datos.` });
   }
   if (empresa.estado === 'solo_exportar' && avisos.exportable_hasta) {
-    filas.push({ clave: 'exportar', clase: 'bg-red-100 text-red-900', texto: `El servicio terminó. Puede consultar y descargar sus datos hasta el ${fecha(avisos.exportable_hasta)}; después se borrarán.` });
+    filas.push({ clave: 'exportar', clase: 'bg-red-100 text-red-900', texto: `El servicio terminó. Puede consultar y descargar sus datos hasta el ${fecha(avisos.exportable_hasta)}; después se borrarán.`,
+      accion: <Link to={`${base}/configuracion?tab=datos`} className="whitespace-nowrap rounded border border-red-900 px-2 py-0.5 text-xs font-semibold hover:bg-red-200">Descargar mis datos</Link>,
+    });
   }
   if (empresa.estado === 'prueba' && avisos.prueba_hasta) {
     filas.push({ clave: 'prueba', clase: 'bg-primary-100 text-primary-700', texto: `Está en su período de prueba hasta el ${fecha(avisos.prueba_hasta)}. El primer cobro será al terminar; puede cancelar antes sin costo.` });

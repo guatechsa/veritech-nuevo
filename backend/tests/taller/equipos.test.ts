@@ -408,8 +408,8 @@ describe('equipos: fotos, documentos, notas y operadores', () => {
     const eq = (await nuevo(api, { tipo_equipo_id: veh, cliente_id: cli })).body.data.equipo;
     expect(eq.documentos_faltantes.map((x: { nombre: string }) => x.nombre).sort()).toEqual(['MANUAL DE OPERACION', 'SEGURO']);
     expect((await api.post(`/equipos/${eq.id}/documentos`).send({ tipo_documento_id: seguro })).status).toBe(400); // falta el vencimiento
-    const hoy = new Date().toISOString().slice(0, 10);
-    const dia = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+    const dia = (n: number) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guatemala' }).format(new Date(Date.now() + n * 86400000));
+    const hoy = dia(0);
     expect((await api.post(`/equipos/${eq.id}/documentos`).send({ tipo_documento_id: seguro, vence: '2020-02-31' })).status).toBe(400);
     const vencido = await api.post(`/equipos/${eq.id}/documentos`).send({ tipo_documento_id: seguro, vence: dia(-3) });
     expect(vencido.status).toBe(201);

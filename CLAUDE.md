@@ -14,6 +14,7 @@ Reescritura completa de VERI-TECH. **Versión actual: 4.000** (en construcción)
 - Nombres en español (`created_at`/`updated_at` por estándar). Estados y tipos por código estable con banderas; nunca por el texto.
 - Texto libre guardado en MAYÚSCULAS sin tildes (excepto correo) también en el servidor (`utils/texto.ts`).
 - Fechas: se muestran `DD/MM/YYYY` con el kit; intercambio ISO. Fechas imposibles se rechazan (`utils/fechas.ts`).
+- Toda tabla nueva con datos del taller se agrega a la descarga (`backend/src/taller/datos/exportar.ts`) o, si no debe salir, a `TABLAS_NO_EXPORTADAS` con su motivo: una prueba lo exige. Lo mismo para cargas masivas nuevas (`datos/importar.ts`).
 - Numeración con tabla `secuencias` (nunca `MAX()+1`). Archivos registrados en `archivos`.
 - Versión: se escribe en `backend/src/version.ts` y `frontend/src/version.ts` (`4.000`) y en los `package.json` como `4.0.0` (4.012 → `4.12.0`) y `CHANGELOG.md`.
 - El kit `ui-guatech` se copia desde `C:\GUATECH\GUATECH\ui-kit`; nunca se edita la copia.

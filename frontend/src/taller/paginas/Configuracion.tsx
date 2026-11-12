@@ -9,6 +9,7 @@ import { dinero } from '../../admin/tipos';
 import { fechaHoraLocal } from '../../utils/hora';
 import { useSesionTaller } from '../Sesion';
 import { Colaboradores } from './config/Colaboradores';
+import { DatosDelTaller } from './config/Datos';
 import { CatalogosDeTrabajo } from './config/Catalogos';
 import { Bitacora, General } from './config/General';
 import { AreasYBodegas, Sucursales } from './config/Estructura';
@@ -169,6 +170,7 @@ const PESTANAS: Pestana[] = [
   { clave: 'roles', texto: 'Roles y permisos', permiso: 'roles.ver', vista: () => <Roles /> },
   { clave: 'jornada', texto: 'Jornada y ausencias', permiso: 'colaboradores.ver', vista: () => <JornadaYAusencias /> },
   { clave: 'catalogos', texto: 'Catálogos de trabajo', permiso: 'catalogos.ver', vista: () => <CatalogosDeTrabajo /> },
+  { clave: 'datos', texto: 'Cargar y descargar datos', vista: () => <DatosDelTaller /> },
   { clave: 'suscripcion', texto: 'Suscripción y pagos', permiso: 'suscripcion.ver', vista: () => <PestanaSuscripcion /> },
   { clave: 'bitacora', texto: 'Bitácora', permiso: 'bitacora.ver', vista: () => <Bitacora /> },
   { clave: 'cuenta', texto: 'Mi cuenta', vista: () => <PestanaCuenta /> },
@@ -177,7 +179,7 @@ const PESTANAS: Pestana[] = [
 export default function Configuracion() {
   const { tiene } = useSesionTaller();
   const [params, setParams] = useSearchParams();
-  const visibles = PESTANAS.filter((p) => !p.permiso || tiene(p.permiso));
+  const visibles = PESTANAS.filter((p) => (p.clave === 'datos' ? tiene('datos.exportar') || tiene('datos.importar') : !p.permiso || tiene(p.permiso)));
   const actual = visibles.find((p) => p.clave === params.get('tab')) ?? visibles[0];
   return (
     <div className="space-y-4">

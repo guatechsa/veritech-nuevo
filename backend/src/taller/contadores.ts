@@ -201,6 +201,39 @@ async function recalcular(con: Ejecutor, contadorId: number): Promise<void> {
   else await ejecutar(con, 'UPDATE contadores SET valor_actual = valor_inicial, ultima_lectura_en = NULL WHERE id = ?', [contadorId]);
 }
 
+/** Registra la lectura dentro de una transacción ya abierta (la usa también la carga masiva). */
+export async function registrarLecturaEn(ctx: Contexto, t: TallerReq, con: Ejecutor, actor: Actor, contadorId: number, d: { valor: number; fecha?: string; notas?: string | null; origen?: 'manual' | 'importacion' }): Promise<number> {
+  const hoy = hoyDelTaller(ctx, t);
+  const c = await obtenerContadorCrudo(con, contadorId);
+  if (c.activo !== 1) throw new ErrorApp(409, 'REGLA', 'El contador está desactivado.');
+  if (c.equipo_estado === 'baja') throw new ErrorApp(409, 'REGLA', 'El equipo está dado de baja.');
+  if (c.es_calendario === 1) throw new ErrorApp(409, 'REGLA', 'Un contador de calendario cuenta los días solo: no se le registran lecturas.');
+  if (!Number.isFinite(d.valor) || d.valor < 0) throw new ErrorValidacion('La lectura no puede ser negativa');
+  const fecha = d.fecha ?? hoy;
+  validarFechaRazonable(fecha, 'fecha', { noFutura: true, hoy });
+  if (fecha < c.fecha_inicio) throw new ErrorValidacion('La lectura no puede ser anterior a la fecha en que se inició el contador');
+  // Un medidor solo avanza: el valor debe quedar entre la lectura anterior y la siguiente (si la hay) de esa fecha.
+  const antes = await una<{ v: number | null }>(con, "SELECT MAX(valor) AS v FROM lecturas_contador WHERE contador_id = ? AND estado <> 'anulada' AND fecha <= ?", [contadorId, fecha]);
+  const despues = await una<{ v: number | null }>(con, "SELECT MIN(valor) AS v FROM lecturas_contador WHERE contador_id = ? AND estado <> 'anulada' AND fecha > ?", [contadorId, fecha]);
+  if (antes?.v !== null && antes?.v !== undefined && d.valor < Number(antes.v)) {
+    throw new ErrorApp(409, 'LECTURA_MENOR', `La lectura (${d.valor}) es menor que la anterior (${Number(antes.v)}). Si la anterior estaba equivocada, anúlela primero.`);
+  }
+  if (despues?.v !== null && despues?.v !== undefined && d.valor > Number(despues.v)) {
+    throw new ErrorApp(409, 'LECTURA_MAYOR', `La lectura (${d.valor}) es mayor que una lectura posterior (${Number(despues.v)}). Revise la fecha o anule la posterior.`);
+  }
+  const r = await ejecutar(con, "INSERT INTO lecturas_contador (contador_id, valor, fecha, origen, registrado_por, notas, estado) VALUES (?, ?, ?, ?, ?, ?, 'valida')", [
+    contadorId,
+    d.valor,
+    fecha,
+    d.origen ?? 'manual',
+    actor.usuarioId,
+    normalizarCampo('texto', d.notas),
+  ]);
+  await recalcular(con, contadorId);
+  await bitacora(con, actor, { accion: 'lectura_registrada', entidad: 'lecturas_contador', entidadId: r.insertId, despues: { contadorId, valor: d.valor, fecha } });
+  return r.insertId;
+}
+
 export async function registrarLectura(
   ctx: Contexto,
   t: TallerReq,
@@ -208,36 +241,7 @@ export async function registrarLectura(
   contadorId: number,
   d: { valor: number; fecha?: string; notas?: string | null }
 ): Promise<FilaLectura> {
-  const hoy = hoyDelTaller(ctx, t);
-  const id = await transaccion(t.pool, async (con) => {
-    const c = await obtenerContadorCrudo(con, contadorId);
-    if (c.activo !== 1) throw new ErrorApp(409, 'REGLA', 'El contador está desactivado.');
-    if (c.equipo_estado === 'baja') throw new ErrorApp(409, 'REGLA', 'El equipo está dado de baja.');
-    if (c.es_calendario === 1) throw new ErrorApp(409, 'REGLA', 'Un contador de calendario cuenta los días solo: no se le registran lecturas.');
-    if (!Number.isFinite(d.valor) || d.valor < 0) throw new ErrorValidacion('La lectura no puede ser negativa');
-    const fecha = d.fecha ?? hoy;
-    validarFechaRazonable(fecha, 'fecha', { noFutura: true, hoy });
-    if (fecha < c.fecha_inicio) throw new ErrorValidacion('La lectura no puede ser anterior a la fecha en que se inició el contador');
-    // Un medidor solo avanza: el valor debe quedar entre la lectura anterior y la siguiente (si la hay) de esa fecha.
-    const antes = await una<{ v: number | null }>(con, "SELECT MAX(valor) AS v FROM lecturas_contador WHERE contador_id = ? AND estado <> 'anulada' AND fecha <= ?", [contadorId, fecha]);
-    const despues = await una<{ v: number | null }>(con, "SELECT MIN(valor) AS v FROM lecturas_contador WHERE contador_id = ? AND estado <> 'anulada' AND fecha > ?", [contadorId, fecha]);
-    if (antes?.v !== null && antes?.v !== undefined && d.valor < Number(antes.v)) {
-      throw new ErrorApp(409, 'LECTURA_MENOR', `La lectura (${d.valor}) es menor que la anterior (${Number(antes.v)}). Si la anterior estaba equivocada, anúlela primero.`);
-    }
-    if (despues?.v !== null && despues?.v !== undefined && d.valor > Number(despues.v)) {
-      throw new ErrorApp(409, 'LECTURA_MAYOR', `La lectura (${d.valor}) es mayor que una lectura posterior (${Number(despues.v)}). Revise la fecha o anule la posterior.`);
-    }
-    const r = await ejecutar(con, "INSERT INTO lecturas_contador (contador_id, valor, fecha, origen, registrado_por, notas, estado) VALUES (?, ?, ?, 'manual', ?, ?, 'valida')", [
-      contadorId,
-      d.valor,
-      fecha,
-      actor.usuarioId,
-      normalizarCampo('texto', d.notas),
-    ]);
-    await recalcular(con, contadorId);
-    await bitacora(con, actor, { accion: 'lectura_registrada', entidad: 'lecturas_contador', entidadId: r.insertId, despues: { contadorId, valor: d.valor, fecha } });
-    return r.insertId;
-  });
+  const id = await transaccion(t.pool, (con) => registrarLecturaEn(ctx, t, con, actor, contadorId, d));
   return (await listarLecturas(ctx, t, contadorId)).find((l) => l.id === id) as FilaLectura;
 }
 

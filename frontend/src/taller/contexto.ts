@@ -81,7 +81,24 @@ export function crearApiTaller(slug: string) {
     }
     return json.data as T;
   }
+  /** Baja un archivo (libro de Excel, .zip): pide con la sesión de este taller y devuelve el contenido con el nombre que sugiere el servidor. */
+  async function bajar(ruta: string): Promise<{ blob: Blob; nombre: string }> {
+    const token = leerTokenTaller(slug);
+    let respuesta: Response;
+    try {
+      respuesta = await fetch(`/api/taller${ruta}`, { headers: { 'X-Taller': slug, ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+    } catch {
+      throw new ErrorApi(0, 'SIN_CONEXION', 'No se pudo conectar con el servidor. Revise su conexión e intente de nuevo.');
+    }
+    if (!respuesta.ok) {
+      const json = (await respuesta.json().catch(() => null)) as { codigo?: string; error?: string } | null;
+      throw new ErrorApi(respuesta.status, json?.codigo ?? 'ERROR', json?.error ?? 'No se pudo descargar el archivo');
+    }
+    const nombre = /filename="([^"]+)"/.exec(respuesta.headers.get('Content-Disposition') ?? '')?.[1] ?? 'descarga';
+    return { blob: await respuesta.blob(), nombre };
+  }
   return {
+    descargar: bajar,
     get: <T,>(ruta: string) => llamar<T>('GET', ruta),
     post: <T,>(ruta: string, cuerpo?: unknown) => llamar<T>('POST', ruta, cuerpo ?? {}),
     patch: <T,>(ruta: string, cuerpo: unknown) => llamar<T>('PATCH', ruta, cuerpo),

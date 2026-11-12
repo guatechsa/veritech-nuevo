@@ -1,0 +1,278 @@
+import fs from 'node:fs';
+import { Response } from 'express';
+import archiver from 'archiver';
+import { FieldPacket, RowDataPacket } from 'mysql2/promise';
+import { filas, una } from '../../db/consulta';
+import { Contexto } from '../../plataforma/contexto';
+import { abrirArchivo } from '../archivos';
+import { Actor, bitacora, TallerReq } from '../comun';
+import { aBuffer, anchoDeColumna, estiloEncabezado, ExcelJS } from './libro';
+
+/**
+ * Descarga de los datos del taller (libro de Excel con una hoja por tema y un .zip con las fotos y documentos).
+ * Es lo que se lleva el taller cuando termina su servicio: por eso NUNCA incluye contraseñas, sesiones ni enlaces de
+ * recuperación, y por eso cada fase nueva debe agregar aquí sus tablas.
+ */
+
+const SI_NO = (c: string): string => `IF(${c} = 1, 'SI', 'NO')`;
+const FECHA = (c: string): string => `DATE_FORMAT(${c}, '%d/%m/%Y')`;
+const FECHA_HORA = (c: string): string => `DATE_FORMAT(${c}, '%d/%m/%Y %H:%i')`;
+const EQUIPO_REF = `COALESCE(NULLIF(CONCAT_WS(' · ', e.codigo_interno, e.placa, e.serie), ''), CONCAT('EQUIPO ', e.id))`;
+
+/**
+ * Tablas del taller que NO salen en la descarga, cada una con su motivo. Toda tabla nueva debe aparecer en una hoja o aquí:
+ * la prueba `datos-cobertura` falla si se olvida una.
+ */
+export const TABLAS_NO_EXPORTADAS: Record<string, string> = {
+  usuarios: 'Guarda las contraseñas de las personas; ellas salen en la hoja «Colaboradores» sin ninguna clave.',
+  sesiones: 'Sesiones abiertas: son llaves de acceso y no tienen valor fuera del sistema.',
+  tokens_recuperacion: 'Enlaces de recuperación de contraseña: son secretos de un solo uso.',
+  permisos: 'Lista fija de permisos que trae cada versión del sistema; no es información del taller.',
+  migraciones_aplicadas: 'Control interno de las versiones de la base de datos.',
+  secuencias: 'Contadores internos de numeración; el sistema nuevo los recalcula.',
+  bitacora: 'PENDIENTE: puede ser enorme y no cabe en un libro de Excel; se descargará aparte en CSV.',
+};
+
+export interface HojaExportada {
+  nombre: string;
+  /** Una consulta cuyos nombres de columna (alias) son los encabezados que verá la persona. */
+  sql: string;
+}
+
+/** Tablas de catálogo que se descargan tal cual (con sus números, para poder cruzarlas con las demás hojas). */
+const CATALOGOS: Array<[string, string]> = [
+  ['sucursales', 'Sucursales'],
+  ['areas_trabajo', 'Areas de trabajo'],
+  ['bodegas', 'Bodegas'],
+  ['puestos', 'Puestos'],
+  ['niveles_tecnico', 'Niveles de tecnico'],
+  ['jornadas', 'Jornadas'],
+  ['ausencias', 'Ausencias'],
+  ['tipos_cliente', 'Tipos de cliente'],
+  ['tipos_equipo', 'Tipos de equipo'],
+  ['marcas', 'Marcas'],
+  ['tipos_contador', 'Tipos de contador'],
+  ['tipos_documento', 'Tipos de documento'],
+  ['sistemas', 'Sistemas'],
+  ['subsistemas', 'Subsistemas'],
+  ['partes', 'Partes'],
+  ['acciones', 'Acciones'],
+  ['trabajos', 'Trabajos'],
+  ['trabajo_horas_tipo_equipo', 'Horas por tipo de equipo'],
+  ['unidades', 'Unidades'],
+  ['tipos_orden', 'Tipos de orden'],
+  ['estados_orden', 'Estados de orden'],
+  ['etapas', 'Etapas'],
+  ['motivos', 'Motivos'],
+  ['configuracion', 'Configuracion'],
+  ['tipos_credencial', 'Tipos de credencial'],
+  ['puesto_credenciales', 'Credenciales por puesto'],
+  ['colaborador_puestos', 'Puestos de colaboradores'],
+  ['colaborador_credenciales', 'Credenciales de colaboradores'],
+  ['matriz_tecnico_sistema', 'Nivel tecnico por sistema'],
+  ['tipo_equipo_documentos', 'Documentos por tipo de equipo'],
+  ['tipo_equipo_componentes', 'Componentes por tipo de equipo'],
+  ['contacto_equipos', 'Contactos por equipo'],
+];
+
+/** Las hojas del libro. Las primeras son las que el taller reconoce de inmediato; luego van los catálogos. */
+export function hojasDeExportacion(): HojaExportada[] {
+  const principales: HojaExportada[] = [
+    {
+      nombre: 'Clientes',
+      sql: `SELECT c.id AS "Número", c.nombre AS "Nombre", c.nit AS "NIT", tc.nombre AS "Tipo de cliente", c.telefono AS "Teléfono", c.email AS "Correo", c.direccion AS "Dirección",
+              c.contacto_nombre AS "Contacto", c.contacto_telefono AS "Teléfono del contacto", c.contacto_email AS "Correo del contacto", UPPER(c.condicion_pago) AS "Condición de pago",
+              c.dias_credito AS "Días de crédito", c.limite_credito AS "Límite de crédito", c.notas AS "Notas", ${SI_NO('c.activo')} AS "Activo", ${FECHA_HORA('c.created_at')} AS "Creado (UTC)"
+            FROM clientes c LEFT JOIN tipos_cliente tc ON tc.id = c.tipo_cliente_id ORDER BY c.nombre, c.id`,
+    },
+    {
+      nombre: 'Departamentos de clientes',
+      sql: `SELECT d.id AS "Número", c.nombre AS "Cliente", d.nombre AS "Departamento", ${SI_NO('d.activo')} AS "Activo"
+            FROM departamentos d JOIN clientes c ON c.id = d.cliente_id ORDER BY c.nombre, d.nombre`,
+    },
+    {
+      nombre: 'Contactos de clientes',
+      sql: `SELECT k.id AS "Número", c.nombre AS "Cliente", k.nombre AS "Nombre", k.correo AS "Correo", k.telefono AS "Teléfono", UPPER(k.rol) AS "Rol",
+              ${SI_NO('k.acceso_todos_equipos')} AS "Ve todos los equipos", ${SI_NO('k.activo')} AS "Activo"
+            FROM contactos_cliente k JOIN clientes c ON c.id = k.cliente_id ORDER BY c.nombre, k.nombre`,
+    },
+    {
+      nombre: 'Proveedores',
+      sql: `SELECT p.id AS "Número", p.nombre AS "Nombre", p.nit AS "NIT", p.contacto_nombre AS "Contacto", p.contacto_telefono AS "Teléfono del contacto", p.contacto_email AS "Correo del contacto",
+              p.direccion AS "Dirección", UPPER(p.condicion_pago) AS "Condición de pago", p.dias_credito AS "Días de crédito", p.notas AS "Notas", ${SI_NO('p.activo')} AS "Activo"
+            FROM proveedores p ORDER BY p.nombre`,
+    },
+    {
+      nombre: 'Equipos',
+      sql: `SELECT e.id AS "Número", IFNULL(c.nombre, 'DEL TALLER') AS "Cliente", te.nombre AS "Tipo de equipo", e.codigo_interno AS "Código interno", e.placa AS "Placa", e.serie AS "Serie",
+              m.nombre AS "Marca", e.modelo AS "Modelo", e.anio AS "Año", e.color AS "Color", e.motor_marca AS "Marca del motor", e.motor_modelo AS "Modelo del motor", e.motor_serie AS "Serie del motor",
+              e.combustible AS "Combustible", e.capacidad_tanque AS "Capacidad del tanque", d.nombre AS "Departamento", UPPER(e.propiedad) AS "Propiedad",
+              REPLACE(UPPER(e.estado), '_', ' ') AS "Estado", e.notas AS "Notas", ${FECHA_HORA('e.created_at')} AS "Creado (UTC)"
+            FROM equipos e JOIN tipos_equipo te ON te.id = e.tipo_equipo_id LEFT JOIN marcas m ON m.id = e.marca_id LEFT JOIN clientes c ON c.id = e.cliente_id
+              LEFT JOIN departamentos d ON d.id = e.departamento_id ORDER BY c.nombre, e.id`,
+    },
+    {
+      nombre: 'Componentes de equipos',
+      sql: `SELECT k.id AS "Número", ${EQUIPO_REF} AS "Equipo", k.nombre AS "Componente", ${SI_NO('k.activo')} AS "Activo"
+            FROM componentes k JOIN equipos e ON e.id = k.equipo_id ORDER BY e.id, k.id`,
+    },
+    {
+      nombre: 'Contadores',
+      sql: `SELECT ct.id AS "Número", ${EQUIPO_REF} AS "Equipo", k.nombre AS "Componente", tc.nombre AS "Tipo de contador", ct.nombre AS "Contador",
+              ct.valor_inicial AS "Valor inicial", ct.valor_actual AS "Valor actual", ${FECHA('ct.fecha_inicio')} AS "Desde", ${FECHA('ct.ultima_lectura_en')} AS "Última lectura",
+              ${SI_NO('ct.es_principal')} AS "Principal", ${SI_NO('ct.activo')} AS "Activo"
+            FROM contadores ct JOIN equipos e ON e.id = ct.equipo_id JOIN tipos_contador tc ON tc.id = ct.tipo_contador_id LEFT JOIN componentes k ON k.id = ct.componente_id
+            ORDER BY e.id, ct.id`,
+    },
+    {
+      nombre: 'Lecturas de contadores',
+      sql: `SELECT l.id AS "Número", ${EQUIPO_REF} AS "Equipo", ct.nombre AS "Contador", l.valor AS "Lectura", ${FECHA('l.fecha')} AS "Fecha", UPPER(l.origen) AS "Origen",
+              REPLACE(UPPER(l.estado), '_', ' ') AS "Estado", co.nombre_completo AS "Registrada por", l.notas AS "Notas", ${FECHA_HORA('l.anulada_en')} AS "Anulada el (UTC)",
+              l.motivo_anulacion AS "Motivo de la anulación"
+            FROM lecturas_contador l JOIN contadores ct ON ct.id = l.contador_id JOIN equipos e ON e.id = ct.equipo_id
+              LEFT JOIN usuarios u ON u.id = l.registrado_por LEFT JOIN colaboradores co ON co.id = u.colaborador_id
+            ORDER BY e.id, ct.id, l.fecha, l.id`,
+    },
+    {
+      nombre: 'Documentos de equipos',
+      sql: `SELECT ed.id AS "Número", ${EQUIPO_REF} AS "Equipo", td.nombre AS "Tipo de documento", ed.nombre AS "Nombre", ${FECHA('ed.vence')} AS "Vence",
+              IF(a.id IS NULL, NULL, CONCAT(a.id, '_', a.nombre_original)) AS "Archivo (en el .zip)", ${SI_NO('ed.activo')} AS "Vigente en el sistema"
+            FROM equipo_documentos ed JOIN equipos e ON e.id = ed.equipo_id JOIN tipos_documento td ON td.id = ed.tipo_documento_id LEFT JOIN archivos a ON a.id = ed.archivo_id
+            ORDER BY e.id, ed.id`,
+    },
+    {
+      nombre: 'Fotos de equipos',
+      sql: `SELECT f.id AS "Número", ${EQUIPO_REF} AS "Equipo", f.descripcion AS "Descripción", ${SI_NO('f.es_principal')} AS "Principal", CONCAT(a.id, '_', a.nombre_original) AS "Archivo (en el .zip)"
+            FROM equipo_fotos f JOIN equipos e ON e.id = f.equipo_id JOIN archivos a ON a.id = f.archivo_id ORDER BY e.id, f.id`,
+    },
+    {
+      nombre: 'Notas de equipos',
+      sql: `SELECT n.id AS "Número", ${EQUIPO_REF} AS "Equipo", n.nota AS "Nota", ${SI_NO('n.es_importante')} AS "Importante", co.nombre_completo AS "Escrita por", ${FECHA_HORA('n.created_at')} AS "Fecha (UTC)"
+            FROM equipo_notas n JOIN equipos e ON e.id = n.equipo_id LEFT JOIN usuarios u ON u.id = n.creado_por LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY e.id, n.id`,
+    },
+    {
+      nombre: 'Operadores de equipos',
+      sql: `SELECT ao.id AS "Número", ${EQUIPO_REF} AS "Equipo", co.nombre_completo AS "Operador", ${FECHA('ao.desde')} AS "Desde", ${FECHA('ao.hasta')} AS "Hasta", ${SI_NO('ao.activo')} AS "Activo"
+            FROM asignaciones_operador ao JOIN equipos e ON e.id = ao.equipo_id JOIN colaboradores co ON co.id = ao.colaborador_id ORDER BY e.id, ao.id`,
+    },
+    {
+      // Sin contraseñas, sesiones ni intentos de ingreso: solo quién es y qué rol tiene.
+      nombre: 'Colaboradores',
+      sql: `SELECT co.id AS "Número", co.codigo AS "Código", co.nombre_completo AS "Nombre", co.correo AS "Correo", co.celular AS "Celular", co.direccion AS "Dirección", co.dpi AS "DPI",
+              s.nombre AS "Sucursal", ar.nombre AS "Área de trabajo", nt.nombre AS "Nivel técnico", ${SI_NO('co.activo')} AS "Activo", IF(u.id IS NULL, 'NO', 'SI') AS "Tiene acceso al sistema",
+              (SELECT GROUP_CONCAT(r.nombre ORDER BY r.nombre SEPARATOR ', ') FROM usuario_roles ur JOIN roles r ON r.id = ur.rol_id WHERE ur.usuario_id = u.id) AS "Roles"
+            FROM colaboradores co LEFT JOIN usuarios u ON u.colaborador_id = co.id LEFT JOIN sucursales s ON s.id = co.sucursal_id LEFT JOIN areas_trabajo ar ON ar.id = co.area_trabajo_id
+              LEFT JOIN niveles_tecnico nt ON nt.id = co.nivel_tecnico_id ORDER BY co.nombre_completo`,
+    },
+    {
+      nombre: 'Roles',
+      sql: `SELECT r.codigo AS "Código", r.nombre AS "Nombre", r.descripcion AS "Descripción", ${SI_NO('r.es_sistema')} AS "Viene con el sistema", ${SI_NO('r.activo')} AS "Activo",
+              (SELECT GROUP_CONCAT(rp.permiso_codigo ORDER BY rp.permiso_codigo SEPARATOR ', ') FROM rol_permisos rp WHERE rp.rol_id = r.id) AS "Permisos"
+            FROM roles r ORDER BY r.nombre`,
+    },
+  ];
+  const catalogos = CATALOGOS.map(([tabla, nombre]) => ({ nombre, sql: `SELECT * FROM ${tabla} ORDER BY 1` }));
+  return [...principales, ...catalogos];
+}
+
+export interface ResumenHoja {
+  hoja: string;
+  filas: number;
+}
+
+export async function resumenDeExportacion(t: TallerReq): Promise<ResumenHoja[]> {
+  const resultado: ResumenHoja[] = [];
+  for (const h of hojasDeExportacion()) {
+    const r = await una<{ n: number }>(t.pool, `SELECT COUNT(*) AS n FROM (${h.sql}) x`);
+    resultado.push({ hoja: h.nombre, filas: Number(r?.n ?? 0) });
+  }
+  return resultado;
+}
+
+function aTexto(v: unknown): string | number | null {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) {
+    const p = (n: number): string => String(n).padStart(2, '0');
+    const fecha = `${p(v.getUTCDate())}/${p(v.getUTCMonth() + 1)}/${v.getUTCFullYear()}`;
+    return v.getUTCHours() === 0 && v.getUTCMinutes() === 0 && v.getUTCSeconds() === 0 ? fecha : `${fecha} ${p(v.getUTCHours())}:${p(v.getUTCMinutes())}`;
+  }
+  if (typeof v === 'number') return v;
+  if (Buffer.isBuffer(v)) return v.toString('utf8');
+  return String(v);
+}
+
+/** Arma el libro de Excel con todas las hojas. */
+export async function generarLibroDeDatos(t: TallerReq, actor: Actor): Promise<{ buffer: Buffer; nombre: string; hojas: ResumenHoja[] }> {
+  const libro = new ExcelJS.Workbook();
+  libro.creator = 'VERI-TECH';
+  libro.created = new Date();
+  const leeme = libro.addWorksheet('Leeme');
+  const resumen: ResumenHoja[] = [];
+  for (const h of hojasDeExportacion()) {
+    const [datos, campos] = (await t.pool.query<RowDataPacket[]>(h.sql)) as unknown as [RowDataPacket[], FieldPacket[]];
+    const hoja = libro.addWorksheet(h.nombre.slice(0, 31));
+    const encabezados = campos.map((c) => c.name);
+    hoja.addRow(encabezados);
+    estiloEncabezado(hoja.getRow(1));
+    hoja.views = [{ state: 'frozen', ySplit: 1 }];
+    for (const fila of datos) hoja.addRow(encabezados.map((e) => aTexto(fila[e])));
+    encabezados.forEach((e, i) => {
+      hoja.getColumn(i + 1).width = anchoDeColumna(e, datos.map((f) => f[e]));
+    });
+    if (datos.length > 0) hoja.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: encabezados.length } };
+    resumen.push({ hoja: h.nombre, filas: datos.length });
+  }
+
+  leeme.columns = [{ width: 34 }, { width: 14 }, { width: 70 }];
+  leeme.addRow([`Datos de ${t.empresa.nombre}`]).font = { bold: true, size: 14 };
+  leeme.addRow([`Descargados el ${new Date().toISOString().slice(0, 16).replace('T', ' ')} (hora UTC) con VERI-TECH.`]);
+  leeme.addRow([]);
+  leeme.addRow(['Las horas marcadas (UTC) están en hora universal; Guatemala va 6 horas atrás. Las fechas van como día/mes/año.']);
+  leeme.addRow(['Las fotos y documentos escaneados vienen aparte, en el archivo .zip, con el mismo nombre que dice la columna «Archivo (en el .zip)».']);
+  leeme.addRow(['Las hojas de catálogos (desde «Sucursales») conservan los números internos para poder cruzarlas con las demás.']);
+  leeme.addRow(['Por seguridad este libro NO incluye contraseñas, sesiones abiertas ni enlaces de recuperación.']);
+  leeme.addRow([]);
+  const cab = leeme.addRow(['Hoja', 'Filas']);
+  estiloEncabezado(cab);
+  for (const r of resumen) leeme.addRow([r.hoja, r.filas]);
+
+  await bitacora(t.pool, actor, { accion: 'datos_exportados', entidad: 'exportacion', despues: { formato: 'xlsx', hojas: resumen.length, filas: resumen.reduce((s, r) => s + r.filas, 0) } });
+  const fecha = new Date().toISOString().slice(0, 10);
+  return { buffer: await aBuffer(libro), nombre: `datos-${t.empresa.slug}-${fecha}.xlsx`, hojas: resumen };
+}
+
+function nombreSeguro(nombre: string): string {
+  return nombre.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 150) || 'archivo';
+}
+
+/** Envía un .zip con todas las fotos y documentos del taller (cada uno se llama «número_nombre original»). */
+export async function enviarZipDeArchivos(ctx: Contexto, t: TallerReq, actor: Actor, res: Response): Promise<void> {
+  const todos = await filas<{ id: number; nombre_original: string }>(t.pool, 'SELECT id, nombre_original FROM archivos ORDER BY id');
+  await bitacora(t.pool, actor, { accion: 'datos_exportados', entidad: 'exportacion', despues: { formato: 'zip', archivos: todos.length } });
+  const fecha = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="archivos-${t.empresa.slug}-${fecha}.zip"`);
+  res.setHeader('Cache-Control', 'no-store');
+  const zip = archiver('zip', { store: true });
+  zip.on('error', () => res.destroy());
+  zip.pipe(res);
+  const faltantes: string[] = [];
+  for (const a of todos) {
+    const nombre = `${a.id}_${nombreSeguro(a.nombre_original)}`;
+    try {
+      const { ruta } = await abrirArchivo(ctx, t, a.id);
+      await fs.promises.access(ruta);
+      zip.append(fs.createReadStream(ruta), { name: `archivos/${nombre}` });
+    } catch {
+      faltantes.push(nombre);
+    }
+  }
+  const lineas = [
+    `Fotos y documentos de ${t.empresa.nombre}`,
+    `Archivos incluidos: ${todos.length - faltantes.length} de ${todos.length}.`,
+    'Cada archivo se llama «número_nombre original»; ese mismo nombre aparece en la columna «Archivo (en el .zip)» del libro de Excel.',
+    ...(faltantes.length > 0 ? ['', 'No se encontraron en el servidor:', ...faltantes] : []),
+  ];
+  zip.append(lineas.join('\r\n'), { name: 'LEEME.txt' });
+  await zip.finalize();
+}

@@ -1,3 +1,4 @@
+import { PoolConnection } from 'mysql2/promise';
 import { Ejecutor, ejecutar, filas, transaccion, una } from '../db/consulta';
 import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { normalizarCampo } from '../utils/texto';
@@ -110,27 +111,30 @@ function normalizado(d: DatosCliente) {
   };
 }
 
-export async function crearCliente(t: TallerReq, actor: Actor, d: DatosCliente & { nombre: string }) {
+/** Crea el cliente dentro de una transacción ya abierta (la usa también la carga masiva). */
+export async function crearClienteEn(con: PoolConnection, actor: Actor, d: DatosCliente & { nombre: string }): Promise<{ id: number; avisos: AvisoDuplicado[] }> {
   const n = normalizado(d);
   const cond = condicionValida({ condicion_pago: d.condicion_pago ?? 'contado', dias_credito: d.dias_credito });
   try {
-    const resultado = await transaccion(t.pool, async (con) => {
-      await exigirNitLibre(con, n.nit ?? null, null);
-      await validarTipo(con, d.tipo_cliente_id);
-      const tipoPorDefecto = d.tipo_cliente_id ?? (await una<{ id: number }>(con, "SELECT id FROM tipos_cliente WHERE activo = 1 ORDER BY id LIMIT 1"))?.id ?? null;
-      const r = await ejecutar(
-        con,
-        `INSERT INTO clientes (nombre, nit, contacto_nombre, contacto_email, contacto_telefono, telefono, email, direccion, condicion_pago, dias_credito, limite_credito, notas, tipo_cliente_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [n.nombre, n.nit ?? null, n.contacto_nombre ?? null, n.contacto_email ?? null, n.contacto_telefono ?? null, n.telefono ?? null, n.email ?? null, n.direccion ?? null, cond.condicion_pago, cond.dias_credito ?? 0, d.limite_credito ?? 0, n.notas ?? null, tipoPorDefecto]
-      );
-      await bitacora(con, actor, { accion: 'cliente_creado', entidad: 'clientes', entidadId: r.insertId, despues: { nombre: n.nombre, nit: n.nit } });
-      return { id: r.insertId, avisos: await buscarDuplicados(con, n.email ?? null, n.telefono ?? null, r.insertId) };
-    });
-    return { cliente: await obtenerCliente(t, resultado.id), avisos: resultado.avisos };
+    await exigirNitLibre(con, n.nit ?? null, null);
+    await validarTipo(con, d.tipo_cliente_id);
+    const tipoPorDefecto = d.tipo_cliente_id ?? (await una<{ id: number }>(con, 'SELECT id FROM tipos_cliente WHERE activo = 1 ORDER BY id LIMIT 1'))?.id ?? null;
+    const r = await ejecutar(
+      con,
+      `INSERT INTO clientes (nombre, nit, contacto_nombre, contacto_email, contacto_telefono, telefono, email, direccion, condicion_pago, dias_credito, limite_credito, notas, tipo_cliente_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [n.nombre, n.nit ?? null, n.contacto_nombre ?? null, n.contacto_email ?? null, n.contacto_telefono ?? null, n.telefono ?? null, n.email ?? null, n.direccion ?? null, cond.condicion_pago, cond.dias_credito ?? 0, d.limite_credito ?? 0, n.notas ?? null, tipoPorDefecto]
+    );
+    await bitacora(con, actor, { accion: 'cliente_creado', entidad: 'clientes', entidadId: r.insertId, despues: { nombre: n.nombre, nit: n.nit } });
+    return { id: r.insertId, avisos: await buscarDuplicados(con, n.email ?? null, n.telefono ?? null, r.insertId) };
   } catch (error) {
     return conflictoSiDuplicado(error, 'Ese NIT ya pertenece a otro cliente');
   }
+}
+
+export async function crearCliente(t: TallerReq, actor: Actor, d: DatosCliente & { nombre: string }) {
+  const resultado = await transaccion(t.pool, (con) => crearClienteEn(con, actor, d));
+  return { cliente: await obtenerCliente(t, resultado.id), avisos: resultado.avisos };
 }
 
 export async function actualizarCliente(t: TallerReq, actor: Actor, id: number, d: DatosCliente) {

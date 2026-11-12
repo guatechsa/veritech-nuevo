@@ -19,7 +19,8 @@ async function admin(t: TallerDePrueba) {
 type Api = Awaited<ReturnType<typeof admin>>;
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(40, 7)]);
-const dia = (n: number) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+/** Día del taller (Guatemala), no el de UTC: de noche son días distintos. */
+const dia = (n: number) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guatemala' }).format(new Date(Date.now() + n * 86400000));
 
 async function tipo(api: Api, ruta: string, campo: string, valor: string): Promise<number> {
   return ((await api.get(ruta)).body.data as Array<Record<string, unknown>>).find((x) => x[campo] === valor)!['id'] as number;

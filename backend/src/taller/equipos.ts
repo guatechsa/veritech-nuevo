@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { PoolConnection } from 'mysql2/promise';
 import { Ejecutor, ejecutar, filas, transaccion, una } from '../db/consulta';
 import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { Contexto } from '../plataforma/contexto';
@@ -395,43 +396,48 @@ async function equipoConPlaca(con: Ejecutor, placa: string | null, exceptoId: nu
   return otro ? { campo: 'placa', equipo: { id: otro.id, descripcion: descripcionDeEquipo(otro) } } : null;
 }
 
-export async function crearEquipo(ctx: Contexto, t: TallerReq, actor: Actor, d: DatosEquipoNuevo) {
+/**
+ * Crea el equipo dentro de una transacción ya abierta (la usa también la carga masiva, que prueba todo y deshace si algo falla).
+ * Devuelve el id y, si la placa ya la tiene otro equipo, el aviso correspondiente.
+ */
+export async function crearEquipoEn(ctx: Contexto, t: TallerReq, con: PoolConnection, actor: Actor, d: DatosEquipoNuevo): Promise<{ id: number; aviso: AvisoEquipo | null }> {
   const hoy = hoyDelTaller(ctx, t);
   const anioActual = Number(hoy.slice(0, 4));
   const base = { tipo_equipo_id: d.tipo_equipo_id, propiedad: d.propiedad ?? 'cliente', cliente_id: d.cliente_id ?? null };
-  let aviso: AvisoEquipo | null = null;
-  const id = await transaccion(t.pool, async (con) => {
-    const { tipo, propiedad, clienteId } = await revisarDatos(con, d, base, anioActual);
-    const valores: Record<string, unknown> = {};
-    for (const [col, norma] of COLUMNAS_TEXTO) valores[col] = normalizarCampo(norma, d[col] as string | null | undefined);
-    try {
-      const r = await ejecutar(
-        con,
-        `INSERT INTO equipos (tipo_equipo_id, codigo_interno, placa, serie, marca_id, modelo, anio, color, motor_marca, motor_modelo, motor_serie, combustible, capacidad_tanque, cliente_id, departamento_id, propiedad, codigo_publico, notas)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          d.tipo_equipo_id, valores['codigo_interno'], valores['placa'], valores['serie'], d.marca_id ?? null, valores['modelo'], d.anio ?? null, valores['color'], valores['motor_marca'],
-          valores['motor_modelo'], valores['motor_serie'], valores['combustible'], d.capacidad_tanque ?? null, clienteId, d.departamento_id ?? null, propiedad,
-          crypto.randomBytes(8).toString('hex'), valores['notas'],
-        ]
-      );
-      const equipoId = r.insertId;
-      // Componentes de la plantilla del tipo, cada uno con su contador si la plantilla lo pide.
-      if (tipo.tiene_componentes === 1) {
-        const plantilla = await filas<{ nombre: string; tipo_contador_id: number | null }>(con, 'SELECT nombre, tipo_contador_id FROM tipo_equipo_componentes WHERE tipo_equipo_id = ? ORDER BY id', [d.tipo_equipo_id]);
-        for (const p of plantilla) {
-          const comp = await ejecutar(con, 'INSERT INTO componentes (equipo_id, nombre) VALUES (?, ?)', [equipoId, p.nombre]);
-          if (p.tipo_contador_id) await crearContadorEn(ctx, t, con, actor, equipoId, { tipo_contador_id: p.tipo_contador_id, componente_id: comp.insertId });
-        }
+  const { tipo, propiedad, clienteId } = await revisarDatos(con, d, base, anioActual);
+  const valores: Record<string, unknown> = {};
+  for (const [col, norma] of COLUMNAS_TEXTO) valores[col] = normalizarCampo(norma, d[col] as string | null | undefined);
+  try {
+    const r = await ejecutar(
+      con,
+      `INSERT INTO equipos (tipo_equipo_id, codigo_interno, placa, serie, marca_id, modelo, anio, color, motor_marca, motor_modelo, motor_serie, combustible, capacidad_tanque, cliente_id, departamento_id, propiedad, codigo_publico, notas)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        d.tipo_equipo_id, valores['codigo_interno'], valores['placa'], valores['serie'], d.marca_id ?? null, valores['modelo'], d.anio ?? null, valores['color'], valores['motor_marca'],
+        valores['motor_modelo'], valores['motor_serie'], valores['combustible'], d.capacidad_tanque ?? null, clienteId, d.departamento_id ?? null, propiedad,
+        crypto.randomBytes(8).toString('hex'), valores['notas'],
+      ]
+    );
+    const equipoId = r.insertId;
+    // Componentes de la plantilla del tipo, cada uno con su contador si la plantilla lo pide.
+    if (tipo.tiene_componentes === 1) {
+      const plantilla = await filas<{ nombre: string; tipo_contador_id: number | null }>(con, 'SELECT nombre, tipo_contador_id FROM tipo_equipo_componentes WHERE tipo_equipo_id = ? ORDER BY id', [d.tipo_equipo_id]);
+      for (const p of plantilla) {
+        const comp = await ejecutar(con, 'INSERT INTO componentes (equipo_id, nombre) VALUES (?, ?)', [equipoId, p.nombre]);
+        if (p.tipo_contador_id) await crearContadorEn(ctx, t, con, actor, equipoId, { tipo_contador_id: p.tipo_contador_id, componente_id: comp.insertId });
       }
-      for (const c of d.contadores ?? []) await crearContadorEn(ctx, t, con, actor, equipoId, c);
-      aviso = await equipoConPlaca(con, valores['placa'] as string | null, equipoId);
-      await bitacora(con, actor, { accion: 'equipo_creado', entidad: 'equipos', entidadId: equipoId, despues: { ...d, ...valores } });
-      return equipoId;
-    } catch (error) {
-      return traducirDuplicado(error);
     }
-  });
+    for (const c of d.contadores ?? []) await crearContadorEn(ctx, t, con, actor, equipoId, c);
+    const aviso = await equipoConPlaca(con, valores['placa'] as string | null, equipoId);
+    await bitacora(con, actor, { accion: 'equipo_creado', entidad: 'equipos', entidadId: equipoId, despues: { ...d, ...valores } });
+    return { id: equipoId, aviso };
+  } catch (error) {
+    return traducirDuplicado(error);
+  }
+}
+
+export async function crearEquipo(ctx: Contexto, t: TallerReq, actor: Actor, d: DatosEquipoNuevo) {
+  const { id, aviso } = await transaccion(t.pool, (con) => crearEquipoEn(ctx, t, con, actor, d));
   return { equipo: await obtenerEquipo(ctx, t, id), avisos: aviso ? [aviso] : [] };
 }
 

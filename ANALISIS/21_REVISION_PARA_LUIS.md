@@ -88,3 +88,5 @@ Probado en navegador real en el taller de práctica: 4c (agendar, reprogramar, r
 - Una devolución no cambia el estado de la solicitud; el material vuelve con el costo con el que salió y el motivo es texto libre.
 - Quién hace qué: pide el supervisor y el técnico (y administrador/gerente); despacha, devuelve y anula el bodeguero (y administrador/gerente); los costos del despacho solo los ve quien tiene «ver costos».
 - Todavía no hay (5c): reservas, «cargar a la orden» desde una reserva, aplicabilidad de materiales a equipos, alertas de mínimo, el aviso por correo al bodeguero cuando llega una solicitud (Fase 7) ni el tablero del tiempo de despacho (Fase 7; los datos ya se guardan).
+
+**Verificación de 5b (2026-11-12):** probado en navegador real en el taller de práctica: pedir 3 filtros desde la orden, despachar 2 (queda DESPACHADA PARCIAL) y luego 1 (DESPACHADA), devolver 1 con motivo; la orden quedó con 2 unidades a Q 65 = Q 130, costo Q 100 y su IVA. No probé en pantalla: anular una solicitud, despachar desde una segunda bodega ni el bloqueo al anular una orden con material (las pruebas automáticas sí los cubren).

@@ -9,7 +9,8 @@ import Tabla, { Columna } from '../../../admin/componentes/Tabla';
 import { fechaHoraLocal } from '../../../utils/hora';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
-import { DetalleOrden, dineroDe, ESTADO_LINEA, EstadoLinea, LineaOrden, OpcionesOrden, PRIORIDAD, soloDia } from './tipos';
+import { FotosLinea } from './FotosLinea';
+import { DetalleOrden, dineroDe, ESTADO_LINEA, EstadoLinea, formatoHoras, LineaOrden, OpcionesOrden, PRIORIDAD, soloDia } from './tipos';
 
 const COLOR_POR_DEFECTO = '#6B7280';
 
@@ -245,7 +246,7 @@ function EditarDatos({ orden, opciones, alCerrar, alListo }: { orden: DetalleOrd
 }
 
 // ── La ficha ──────────────────────────────────────────────────────────────────────────
-type Ventana = 'servicio' | 'tercero' | 'anular' | 'editar' | 'reabrir' | { anularLinea: LineaOrden } | null;
+type Ventana = 'servicio' | 'tercero' | 'anular' | 'editar' | 'reabrir' | { anularLinea: LineaOrden } | { fotosLinea: number } | null;
 
 export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: () => void; alCambiar: () => void }) {
   const { api, tiene, perfil } = useSesionTaller();
@@ -294,8 +295,19 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
         </span>
       ),
     },
-    { clave: 'tecnico', etiqueta: 'Técnico', valor: (l) => l.tecnico ?? '', render: (l) => l.tecnico ?? '—' },
-    { clave: 'horas', etiqueta: 'Horas', valor: (l) => l.horas_trabajo ?? 0, render: (l) => (l.tipo === 'servicio' ? l.horas_trabajo : `${l.cantidad} u.`), alinear: 'right' },
+    {
+      clave: 'tecnico',
+      etiqueta: 'Técnico',
+      valor: (l) => l.tecnico ?? '',
+      render: (l) =>
+        puedeEditar && !l.anulada_en && l.tipo !== 'material' && l.estado !== 'terminado' ? (
+          <select className="max-w-[10rem] rounded-md border border-gray-300 px-2 py-1 text-xs" value={l.tecnico_id ?? ''} aria-label="Técnico del trabajo" onChange={(e) => void accion(() => api.patch(`/lineas/${l.id}`, { tecnico_id: e.target.value ? Number(e.target.value) : null }), 'No se pudo asignar el técnico')}>
+            <option value="">Sin asignar</option>
+            {(opciones.datos?.responsables ?? []).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+          </select>
+        ) : (l.tecnico ?? '—'),
+    },
+    { clave: 'horas', etiqueta: 'Horas', valor: (l) => l.horas_trabajo ?? 0, render: (l) => (l.tipo === 'servicio' ? <span>{l.horas_trabajo} h{l.horas_reales > 0 ? <span className="block text-xs text-gray-500">{formatoHoras(l.horas_reales)} reales</span> : null}</span> : `${l.cantidad} u.`), alinear: 'right' },
     {
       clave: 'estado',
       etiqueta: 'Estado',
@@ -312,7 +324,13 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
     {
       clave: 'acc',
       etiqueta: 'Acciones',
-      render: (l) => (puedeEditar && !l.anulada_en ? <Acciones><BotonAccion onClick={() => setVentana({ anularLinea: l })}>Anular</BotonAccion></Acciones> : null),
+      render: (l) =>
+        l.tipo === 'material' ? null : (
+          <Acciones>
+            <BotonAccion onClick={() => setVentana({ fotosLinea: l.id })}>Fotos ({l.fotos.length})</BotonAccion>
+            {puedeEditar && !l.anulada_en && <BotonAccion onClick={() => setVentana({ anularLinea: l })}>Anular</BotonAccion>}
+          </Acciones>
+        ),
     },
   ];
 
@@ -418,6 +436,10 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
           }}
         />
       )}
+      {orden && typeof ventana === 'object' && ventana !== null && 'fotosLinea' in ventana && (() => {
+        const l = orden.lineas.find((x) => x.id === ventana.fotosLinea);
+        return l ? <FotosLinea lineaId={l.id} titulo={l.descripcion} fotos={l.fotos} puedeCambiar={puedeEditar} alCerrar={() => setVentana(null)} alCambiar={() => { cargar(); alCambiar(); }} /> : null;
+      })()}
       {orden && typeof ventana === 'object' && ventana !== null && 'anularLinea' in ventana && (
         <PedirMotivo
           titulo="Anular el trabajo"

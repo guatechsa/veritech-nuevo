@@ -203,6 +203,18 @@ export function hojasDeExportacion(): HojaExportada[] {
             FROM tarifas_area ta JOIN areas_trabajo ar ON ar.id = ta.area_trabajo_id JOIN tipos_equipo te ON te.id = ta.tipo_equipo_id ORDER BY ar.nombre, te.nombre`,
     },
     {
+      nombre: 'Tiempos de trabajo',
+      sql: `SELECT r.id AS "Número", o.numero AS "Orden", l.descripcion AS "Trabajo", co.nombre_completo AS "Técnico", ${FECHA_HORA('r.inicio')} AS "Inició (UTC)", ${FECHA_HORA('r.fin')} AS "Terminó (UTC)",
+              ROUND(TIMESTAMPDIFF(SECOND, r.inicio, COALESCE(r.fin, UTC_TIMESTAMP())) / 3600, 2) AS "Horas"
+            FROM registros_tiempo r JOIN lineas_orden l ON l.id = r.linea_id JOIN ordenes o ON o.id = l.orden_id JOIN colaboradores co ON co.id = r.colaborador_id ORDER BY o.id, r.id`,
+    },
+    {
+      nombre: 'Fotos de trabajos',
+      sql: `SELECT f.id AS "Número", o.numero AS "Orden", l.descripcion AS "Trabajo", UPPER(f.tipo) AS "Momento", f.descripcion AS "Descripción", CONCAT(a.id, '_', a.nombre_original) AS "Archivo (en el .zip)",
+              ${FECHA_HORA('f.created_at')} AS "Subida el (UTC)"
+            FROM linea_fotos f JOIN lineas_orden l ON l.id = f.linea_id JOIN ordenes o ON o.id = l.orden_id JOIN archivos a ON a.id = f.archivo_id ORDER BY o.id, f.id`,
+    },
+    {
       nombre: 'Roles',
       sql: `SELECT r.codigo AS "Código", r.nombre AS "Nombre", r.descripcion AS "Descripción", ${SI_NO('r.es_sistema')} AS "Viene con el sistema", ${SI_NO('r.activo')} AS "Activo",
               (SELECT GROUP_CONCAT(rp.permiso_codigo ORDER BY rp.permiso_codigo SEPARATOR ', ') FROM rol_permisos rp WHERE rp.rol_id = r.id) AS "Permisos"

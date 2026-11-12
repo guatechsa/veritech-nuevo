@@ -1,13 +1,17 @@
-import { Request, Router } from 'express';
+import express, { Request, Router } from 'express';
 import { z } from 'zod';
+import { ErrorValidacion } from '../errores';
 import { Contexto } from '../plataforma/contexto';
+import { MAXIMO_BYTES, nombreDeLaPeticion } from './archivos';
 import { actorDe, idDe, validar } from './comun';
 import {
   actualizarLinea,
   actualizarOrden,
+  agregarFotoLinea,
   agregarLinea,
   anularLinea,
   anularOrden,
+  autorizarSobreLinea,
   cambiarEstadoLinea,
   cambiarEstadoOrden,
   crearOrden,
@@ -15,8 +19,10 @@ import {
   ESTADOS_DE_LINEA,
   listarOrdenes,
   listarTarifasArea,
+  misTrabajos,
   obtenerOrden,
   opcionesDeOrden,
+  quitarFotoLinea,
   quitarTarifaArea,
   Vista,
 } from './ordenes';
@@ -156,9 +162,31 @@ export function montarRutasOrdenes(router: Router, ctx: Contexto): void {
     res.json({ success: true, data: await fichaPara(ctx, req, o) });
   });
 
-  router.post('/lineas/:id/estado', editar, async (req, res) => {
+  /** Iniciar, pausar, detener o terminar: quien edita órdenes en cualquier línea, el técnico solo en las suyas. */
+  router.post('/lineas/:id/estado', ver, async (req, res) => {
     const d = validar(z.object({ estado: z.enum(ESTADOS_DE_LINEA) }), req.body);
+    await autorizarSobreLinea(taller(req), req.sesionTaller!.usuarioId, req.sesionTaller!.permisos, idDe(req));
     const o = await cambiarEstadoLinea(ctx, taller(req), actorDe(req), idDe(req), d.estado);
+    res.json({ success: true, data: await fichaPara(ctx, req, o) });
+  });
+
+  router.get('/mis-trabajos', exigirPermiso('ordenes.trabajar'), async (req, res) => {
+    res.json({ success: true, data: await misTrabajos(ctx, taller(req), req.sesionTaller!.usuarioId) });
+  });
+
+  // Fotos del trabajo (el cuerpo es la foto tal cual; el nombre viaja en X-Nombre-Archivo)
+  const cuerpoFoto = express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: MAXIMO_BYTES });
+  router.post('/lineas/:id/fotos', ver, cuerpoFoto, async (req, res) => {
+    const q = validar(z.object({ tipo: z.enum(['antes', 'durante', 'despues']).default('durante'), descripcion: texto(150).optional() }), req.query);
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) throw new ErrorValidacion('Envíe una foto (JPG, PNG o WEBP)');
+    await autorizarSobreLinea(taller(req), req.sesionTaller!.usuarioId, req.sesionTaller!.permisos, idDe(req));
+    const mime = (req.headers['content-type'] ?? '').split(';')[0]?.trim() ?? '';
+    const o = await agregarFotoLinea(ctx, taller(req), actorDe(req), idDe(req), { buffer: req.body, mime, nombre: nombreDeLaPeticion(req), tipo: q.tipo, descripcion: q.descripcion });
+    res.status(201).json({ success: true, data: await fichaPara(ctx, req, o) });
+  });
+  router.delete('/lineas/:id/fotos/:fotoId', ver, async (req, res) => {
+    await autorizarSobreLinea(taller(req), req.sesionTaller!.usuarioId, req.sesionTaller!.permisos, idDe(req));
+    const o = await quitarFotoLinea(ctx, taller(req), actorDe(req), idDe(req), idDe(req, 'fotoId'));
     res.json({ success: true, data: await fichaPara(ctx, req, o) });
   });
 

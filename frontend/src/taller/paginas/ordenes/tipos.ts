@@ -70,6 +70,9 @@ export interface LineaOrden {
   notas: string | null;
   anulada_en: string | null;
   motivo_anulacion: string | null;
+  horas_reales: number;
+  en_curso: boolean;
+  fotos: Array<{ id: number; tipo: 'antes' | 'durante' | 'despues'; descripcion: string | null; url: string }>;
 }
 
 export interface DetalleOrden {
@@ -123,3 +126,11 @@ export function dineroDe(moneda: string, monto: number | null | undefined): stri
 
 /** Los DATE de la base llegan como «2026-11-15T00:00:00.000Z»: se toma solo el día. */
 export const soloDia = (v: string | null | undefined): string => (v ? v.slice(0, 10) : '');
+
+/** 90 minutos → «1 h 30 min». */
+export function formatoHoras(horas: number): string {
+  const minutos = Math.round(horas * 60);
+  const h = Math.floor(minutos / 60);
+  const m = minutos % 60;
+  return h === 0 ? `${m} min` : m === 0 ? `${h} h` : `${h} h ${m} min`;
+}

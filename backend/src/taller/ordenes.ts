@@ -4,6 +4,7 @@ import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { validarFechaRazonable } from '../utils/fechas';
 import { normalizarCampo } from '../utils/texto';
+import { borrarArchivo, guardarArchivo, urlFirmada } from './archivos';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
 import { leerConfiguracion } from './configuracion';
 import { hoyDelTaller, registrarLecturaEn } from './contadores';
@@ -165,9 +166,16 @@ export async function obtenerOrden(ctx: Contexto, t: TallerReq, id: number, vist
     t.pool,
     `SELECT l.id, l.tipo, l.trabajo_id, tr.codigo AS trabajo_codigo, l.proveedor_id, p.nombre AS proveedor, l.descripcion, l.cantidad, l.precio_unitario, l.descuento_pct, l.total_linea, l.costo,
             l.horas_trabajo, l.tarifa_hora_aplicada, l.costo_hora_aplicado, l.area_trabajo_id, ar.nombre AS area, l.tecnico_id, co.nombre_completo AS tecnico, l.estado,
-            l.inicio_en, l.pausa_en, l.fin_en, l.notas, l.anulada_en, l.motivo_anulacion
+            l.inicio_en, l.pausa_en, l.fin_en, l.notas, l.anulada_en, l.motivo_anulacion,
+            (SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, r.inicio, COALESCE(r.fin, ?))), 0) FROM registros_tiempo r WHERE r.linea_id = l.id) AS segundos,
+            EXISTS(SELECT 1 FROM registros_tiempo r WHERE r.linea_id = l.id AND r.fin IS NULL) AS en_curso
        FROM lineas_orden l LEFT JOIN trabajos tr ON tr.id = l.trabajo_id LEFT JOIN proveedores p ON p.id = l.proveedor_id LEFT JOIN areas_trabajo ar ON ar.id = l.area_trabajo_id
        LEFT JOIN colaboradores co ON co.id = l.tecnico_id WHERE l.orden_id = ? ORDER BY l.id`,
+    [ahoraDe(ctx), id]
+  );
+  const fotos = await filas<{ id: number; linea_id: number; archivo_id: number; tipo: string; descripcion: string | null }>(
+    t.pool,
+    'SELECT f.id, f.linea_id, f.archivo_id, f.tipo, f.descripcion FROM linea_fotos f JOIN lineas_orden l ON l.id = f.linea_id WHERE l.orden_id = ? ORDER BY f.id',
     [id]
   );
   const historial = await filas<Record<string, unknown>>(
@@ -197,7 +205,15 @@ export async function obtenerOrden(ctx: Contexto, t: TallerReq, id: number, vist
     ...resto,
     equipo: descripcionDeEquipo({ id: Number(o['equipo_id']), codigo_interno: o['codigo_interno'] as string | null, placa: o['placa'] as string | null, marca: o['marca'] as string | null, modelo: o['modelo'] as string | null, tipo_equipo: o['tipo_equipo'] as string }),
     ...(vista.precios ? { subtotal: Number(subtotal), descuento_total: Number(descuento_total), iva: Number(iva), total: Number(total) } : {}),
-    lineas: lineas.map(sinDinero),
+    lineas: lineas.map((l) => {
+      const { segundos, en_curso, ...resto2 } = sinDinero(l) as { segundos: number; en_curso: number } & Record<string, unknown>;
+      return {
+        ...resto2,
+        horas_reales: Math.round((Number(segundos) / 3600) * 100) / 100,
+        en_curso: Number(en_curso) === 1,
+        fotos: fotos.filter((f) => f.linea_id === l['id']).map((f) => ({ id: f.id, tipo: f.tipo, descripcion: f.descripcion, url: urlFirmada(ctx, t.empresa.slug, f.archivo_id) })),
+      };
+    }),
     historial,
     ingresos: ingresos.length,
     equipo_en_taller: ingresos.some((i) => i.salida_en === null),
@@ -386,6 +402,7 @@ export async function anularOrden(ctx: Contexto, t: TallerReq, actor: Actor, id:
     if (!cancelado) throw new ErrorApp(409, 'REGLA', 'El taller no tiene un estado de orden «cancelado» activo. Revise los estados de orden.');
     const ahora = ahoraDe(ctx);
     // Los trabajos sin terminar se anulan con la orden; los ya terminados se conservan.
+    await ejecutar(con, `UPDATE registros_tiempo r JOIN lineas_orden l ON l.id = r.linea_id SET r.fin = ? WHERE l.orden_id = ? AND r.fin IS NULL`, [ahora, id]);
     await ejecutar(con, `UPDATE lineas_orden SET anulada_en = ?, anulada_por_id = ?, motivo_anulacion = ? WHERE orden_id = ? AND ${ACTIVA} AND estado <> 'terminado'`, [ahora, actor.usuarioId, `ORDEN ANULADA: ${m.nombre}`, id]);
     await ejecutar(con, 'UPDATE ordenes SET motivo_anulacion_id = ?, motivo_anulacion_texto = ? WHERE id = ?', [d.motivo_id, texto, id]);
     await recalcularTotales(con, id, cfg);
@@ -418,10 +435,22 @@ async function descuentoDelCliente(con: Ejecutor, clienteId: number | null, colu
 
 const totalDeLinea = (cantidad: number, precio: number, descuento: number): number => r2(cantidad * precio * (1 - descuento / 100));
 
-async function validarTecnico(con: Ejecutor, tecnicoId: number | null | undefined): Promise<void> {
+async function validarTecnico(con: Ejecutor, tecnicoId: number | null | undefined, trabajoId?: number | null): Promise<void> {
   if (!tecnicoId) return;
-  const c = await una<{ activo: number }>(con, 'SELECT activo FROM colaboradores WHERE id = ?', [tecnicoId]);
+  const c = await una<{ activo: number; nombre: string; nivel_tecnico_id: number | null }>(con, 'SELECT activo, nombre_completo AS nombre, nivel_tecnico_id FROM colaboradores WHERE id = ?', [tecnicoId]);
   if (!c || c.activo !== 1) throw new ErrorValidacion('El técnico elegido no existe o está desactivado');
+  // Matriz nivel × sistema: una fila ausente es SIN permiso. Quien no tiene nivel asignado no tiene restricción.
+  if (trabajoId && c.nivel_tecnico_id) {
+    const sis = await una<{ id: number; nombre: string }>(
+      con,
+      'SELECT s.id, s.nombre FROM trabajos tr JOIN partes p ON p.id = tr.parte_id JOIN subsistemas x ON x.id = p.subsistema_id JOIN sistemas s ON s.id = x.sistema_id WHERE tr.id = ?',
+      [trabajoId]
+    );
+    if (sis) {
+      const ok = await una(con, 'SELECT 1 AS x FROM matriz_tecnico_sistema WHERE nivel_tecnico_id = ? AND sistema_id = ?', [c.nivel_tecnico_id, sis.id]);
+      if (!ok) throw new ErrorApp(409, 'SIN_NIVEL', `El nivel de ${c.nombre} no está habilitado para trabajos de ${sis.nombre}. Elija a otro técnico o cambie la matriz de niveles.`);
+    }
+  }
 }
 
 /** Horas y tarifa que le tocan a un trabajo en el equipo de la orden. */
@@ -451,7 +480,7 @@ export async function agregarLinea(t: TallerReq, actor: Actor, ordenId: number, 
   await transaccion(t.pool, async (con) => {
     const o = await ordenCruda(con, ordenId, true);
     exigirAbierta(o);
-    await validarTecnico(con, d.tecnico_id);
+    await validarTecnico(con, d.tecnico_id, d.tipo === 'servicio' ? d.trabajo_id : null);
     const areaId = d.area_trabajo_id ?? null;
     if (areaId) {
       const a = await una<{ activo: number }>(con, 'SELECT activo FROM areas_trabajo WHERE id = ?', [areaId]);
@@ -497,9 +526,9 @@ export async function agregarLinea(t: TallerReq, actor: Actor, ordenId: number, 
 }
 
 async function lineaCruda(con: Ejecutor, id: number) {
-  const l = await una<{ id: number; orden_id: number; tipo: 'servicio' | 'material' | 'tercero'; trabajo_id: number | null; estado: EstadoLinea; anulada_en: Date | null; cantidad: number; precio_unitario: number; descuento_pct: number; horas_trabajo: number | null; area_trabajo_id: number | null; inicio_en: Date | null }>(
+  const l = await una<{ id: number; orden_id: number; tipo: 'servicio' | 'material' | 'tercero'; trabajo_id: number | null; estado: EstadoLinea; anulada_en: Date | null; cantidad: number; precio_unitario: number; descuento_pct: number; horas_trabajo: number | null; area_trabajo_id: number | null; inicio_en: Date | null; tecnico_id: number | null }>(
     con,
-    'SELECT id, orden_id, tipo, trabajo_id, estado, anulada_en, cantidad, precio_unitario, descuento_pct, horas_trabajo, area_trabajo_id, inicio_en FROM lineas_orden WHERE id = ? FOR UPDATE',
+    'SELECT id, orden_id, tipo, trabajo_id, estado, anulada_en, cantidad, precio_unitario, descuento_pct, horas_trabajo, area_trabajo_id, inicio_en, tecnico_id FROM lineas_orden WHERE id = ? FOR UPDATE',
     [id]
   );
   if (!l) throw new ErrorNoEncontrado('No se encontró la línea');
@@ -527,7 +556,8 @@ export async function actualizarLinea(
       v.push(normalizarCampo('texto', d.notas));
     }
     if (d.tecnico_id !== undefined) {
-      await validarTecnico(con, d.tecnico_id);
+      if (l.estado === 'en_proceso' && d.tecnico_id !== l.tecnico_id) throw new ErrorApp(409, 'REGLA', 'El trabajo está en proceso: páuselo o termínelo antes de cambiar de técnico.');
+      await validarTecnico(con, d.tecnico_id, l.trabajo_id);
       sets.push('tecnico_id = ?');
       v.push(d.tecnico_id);
     }
@@ -581,6 +611,7 @@ export async function anularLinea(ctx: Contexto, t: TallerReq, actor: Actor, id:
     const l = await lineaCruda(con, id);
     ordenId = l.orden_id;
     exigirAbierta(await ordenCruda(con, l.orden_id, true));
+    await ejecutar(con, 'UPDATE registros_tiempo SET fin = ? WHERE linea_id = ? AND fin IS NULL', [ahoraDe(ctx), id]);
     await ejecutar(con, 'UPDATE lineas_orden SET anulada_en = ?, anulada_por_id = ?, motivo_anulacion = ? WHERE id = ?', [ahoraDe(ctx), actor.usuarioId, texto.slice(0, 300), id]);
     await recalcularTotales(con, l.orden_id, cfg);
     await bitacora(con, actor, { accion: 'orden_linea_anulada', entidad: 'lineas_orden', entidadId: id, motivo: texto });
@@ -588,7 +619,10 @@ export async function anularLinea(ctx: Contexto, t: TallerReq, actor: Actor, id:
   return ordenId;
 }
 
-/** Cambio de estado de una línea (los 8 estados del estándar, sin grafo). Los tiempos reales por técnico llegan en la parte 4b. */
+/**
+ * Cambio de estado de una línea (los 8 estados del estándar, sin grafo). Al pasar a «en proceso» se abre un tramo de tiempo del
+ * técnico (que no puede tener dos a la vez); al salir de «en proceso» se cierra. De los tramos salen las horas reales.
+ */
 export async function cambiarEstadoLinea(ctx: Contexto, t: TallerReq, actor: Actor, id: number, estado: EstadoLinea) {
   let ordenId = 0;
   await transaccion(t.pool, async (con) => {
@@ -596,7 +630,22 @@ export async function cambiarEstadoLinea(ctx: Contexto, t: TallerReq, actor: Act
     ordenId = l.orden_id;
     exigirAbierta(await ordenCruda(con, l.orden_id, true));
     if (l.tipo === 'material') throw new ErrorApp(409, 'REGLA', 'Los materiales los controla Inventario: no tienen estados de trabajo.');
+    if (l.estado === estado) throw new ErrorApp(409, 'REGLA', 'La línea ya está en ese estado.');
     const ahora = ahoraDe(ctx);
+    if (estado === 'en_proceso') {
+      if (!l.tecnico_id) throw new ErrorApp(409, 'SIN_TECNICO', 'Asigne un técnico al trabajo antes de iniciarlo.');
+      await validarTecnico(con, l.tecnico_id, l.trabajo_id);
+      const ocupado = await una<{ numero: string; descripcion: string }>(
+        con,
+        `SELECT o.numero, l2.descripcion FROM registros_tiempo r JOIN lineas_orden l2 ON l2.id = r.linea_id JOIN ordenes o ON o.id = l2.orden_id
+          WHERE r.colaborador_id = ? AND r.fin IS NULL LIMIT 1`,
+        [l.tecnico_id]
+      );
+      if (ocupado) throw new ErrorApp(409, 'TECNICO_OCUPADO', `Este técnico ya tiene un trabajo en proceso (${ocupado.descripcion}, orden ${ocupado.numero}). Debe pausarlo o terminarlo antes de iniciar otro.`, ocupado);
+      await ejecutar(con, 'INSERT INTO registros_tiempo (linea_id, colaborador_id, inicio) VALUES (?, ?, ?)', [id, l.tecnico_id, ahora]);
+    } else if (l.estado === 'en_proceso') {
+      await ejecutar(con, 'UPDATE registros_tiempo SET fin = ? WHERE linea_id = ? AND fin IS NULL', [ahora, id]);
+    }
     const sets = ['estado = ?'];
     const v: unknown[] = [estado];
     if (estado === 'en_proceso') {
@@ -613,6 +662,85 @@ export async function cambiarEstadoLinea(ctx: Contexto, t: TallerReq, actor: Act
     }
     await ejecutar(con, `UPDATE lineas_orden SET ${sets.join(', ')} WHERE id = ?`, [...v, id]);
     await bitacora(con, actor, { accion: 'orden_linea_estado', entidad: 'lineas_orden', entidadId: id, antes: { estado: l.estado }, despues: { estado } });
+  });
+  return ordenId;
+}
+
+/** Quién puede actuar sobre una línea: quien edita órdenes (en cualquiera) o el técnico asignado (solo en las suyas). */
+export async function autorizarSobreLinea(t: TallerReq, usuarioId: number, permisos: Set<string>, lineaId: number): Promise<void> {
+  if (permisos.has('ordenes.editar')) return;
+  const f = await una<{ tecnico_id: number | null; colaborador_id: number | null }>(
+    t.pool,
+    'SELECT l.tecnico_id, (SELECT u.colaborador_id FROM usuarios u WHERE u.id = ?) AS colaborador_id FROM lineas_orden l WHERE l.id = ?',
+    [usuarioId, lineaId]
+  );
+  if (!f) throw new ErrorNoEncontrado('No se encontró la línea');
+  if (permisos.has('ordenes.trabajar') && f.tecnico_id !== null && f.tecnico_id === f.colaborador_id) return;
+  throw new ErrorApp(403, 'SIN_PERMISO', 'Solo puede trabajar en los trabajos que tiene asignados.');
+}
+
+// ── Mis trabajos ──────────────────────────────────────────────────────────────────────
+export async function misTrabajos(ctx: Contexto, t: TallerReq, usuarioId: number) {
+  const yo = await una<{ colaborador_id: number }>(t.pool, 'SELECT colaborador_id FROM usuarios WHERE id = ?', [usuarioId]);
+  if (!yo) return { colaborador_id: null, ocupado: false, trabajos: [] };
+  const ahora = ahoraDe(ctx);
+  const lineas = await filas<Record<string, unknown>>(
+    t.pool,
+    `SELECT l.id, l.orden_id, o.numero, o.prioridad, o.descripcion AS orden_descripcion, e.codigo_interno, e.placa, m.nombre AS marca, e.modelo, te.nombre AS tipo_equipo, c.nombre AS cliente,
+            l.descripcion, l.horas_trabajo, l.estado, l.notas, l.inicio_en,
+            (SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, r.inicio, COALESCE(r.fin, ?))), 0) FROM registros_tiempo r WHERE r.linea_id = l.id) AS segundos,
+            (SELECT r.inicio FROM registros_tiempo r WHERE r.linea_id = l.id AND r.fin IS NULL LIMIT 1) AS tramo_desde
+       FROM lineas_orden l JOIN ordenes o ON o.id = l.orden_id JOIN estados_orden es ON es.id = o.estado_id JOIN equipos e ON e.id = o.equipo_id JOIN tipos_equipo te ON te.id = e.tipo_equipo_id
+       LEFT JOIN marcas m ON m.id = e.marca_id LEFT JOIN clientes c ON c.id = o.cliente_id
+      WHERE l.tecnico_id = ? AND l.anulada_en IS NULL AND l.estado <> 'terminado' AND l.tipo <> 'material' AND es.es_terminal = 0
+      ORDER BY (l.estado = 'en_proceso') DESC, FIELD(o.prioridad, 'urgente', 'alta', 'media', 'baja'), l.id`,
+    [ahora, yo.colaborador_id]
+  );
+  const ids = lineas.map((l) => Number(l['id']));
+  const fotos = ids.length === 0 ? [] : await filas<{ id: number; linea_id: number; archivo_id: number; tipo: string }>(t.pool, 'SELECT id, linea_id, archivo_id, tipo FROM linea_fotos WHERE linea_id IN (?) ORDER BY id', [ids]);
+  return {
+    colaborador_id: yo.colaborador_id,
+    ocupado: lineas.some((l) => l['estado'] === 'en_proceso'),
+    trabajos: lineas.map((l) => {
+      const { segundos, codigo_interno, placa, marca, modelo, tipo_equipo, ...resto } = l as { segundos: number; codigo_interno: string | null; placa: string | null; marca: string | null; modelo: string | null; tipo_equipo: string } & Record<string, unknown>;
+      return {
+        ...resto,
+        equipo: descripcionDeEquipo({ id: 0, codigo_interno, placa, marca, modelo, tipo_equipo }),
+        horas_reales: Math.round((Number(segundos) / 3600) * 100) / 100,
+        fotos: fotos.filter((f) => f.linea_id === l['id']).map((f) => ({ id: f.id, tipo: f.tipo, url: urlFirmada(ctx, t.empresa.slug, f.archivo_id) })),
+      };
+    }),
+  };
+}
+
+// ── Fotos de una línea ────────────────────────────────────────────────────────────────
+export async function agregarFotoLinea(ctx: Contexto, t: TallerReq, actor: Actor, lineaId: number, entrada: { buffer: Buffer; mime: string; nombre: string; tipo: 'antes' | 'durante' | 'despues'; descripcion?: string | null }): Promise<number> {
+  let ordenId = 0;
+  await transaccion(t.pool, async (con) => {
+    const l = await lineaCruda(con, lineaId);
+    ordenId = l.orden_id;
+    exigirAbierta(await ordenCruda(con, l.orden_id, true));
+    const total = await una<{ n: number }>(con, 'SELECT COUNT(*) AS n FROM linea_fotos WHERE linea_id = ?', [lineaId]);
+    if (Number(total?.n) >= 20) throw new ErrorApp(409, 'REGLA', 'Cada trabajo admite hasta 20 fotos.');
+    if (!entrada.mime.startsWith('image/')) throw new ErrorValidacion('Aquí solo se aceptan fotos (JPG, PNG o WEBP).');
+    const archivo = await guardarArchivo(ctx, t, con, actor, entrada);
+    await ejecutar(con, 'INSERT INTO linea_fotos (linea_id, archivo_id, tipo, descripcion, subido_por_id) VALUES (?, ?, ?, ?, ?)', [lineaId, archivo.id, entrada.tipo, normalizarCampo('texto', entrada.descripcion)?.slice(0, 150) ?? null, actor.usuarioId]);
+    await bitacora(con, actor, { accion: 'orden_linea_foto', entidad: 'lineas_orden', entidadId: lineaId, despues: { tipo: entrada.tipo, archivo_id: archivo.id } });
+  });
+  return ordenId;
+}
+
+export async function quitarFotoLinea(ctx: Contexto, t: TallerReq, actor: Actor, lineaId: number, fotoId: number): Promise<number> {
+  let ordenId = 0;
+  await transaccion(t.pool, async (con) => {
+    const l = await lineaCruda(con, lineaId);
+    ordenId = l.orden_id;
+    exigirAbierta(await ordenCruda(con, l.orden_id, true));
+    const f = await una<{ archivo_id: number }>(con, 'SELECT archivo_id FROM linea_fotos WHERE id = ? AND linea_id = ?', [fotoId, lineaId]);
+    if (!f) throw new ErrorNoEncontrado('No se encontró la foto');
+    await ejecutar(con, 'DELETE FROM linea_fotos WHERE id = ?', [fotoId]);
+    await borrarArchivo(ctx, t, con, f.archivo_id);
+    await bitacora(con, actor, { accion: 'orden_linea_foto_quitada', entidad: 'lineas_orden', entidadId: lineaId, despues: { fotoId } });
   });
   return ordenId;
 }

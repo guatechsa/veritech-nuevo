@@ -13,6 +13,7 @@ import { montarRutasEquipos } from './rutas-equipos';
 import { montarRutasEstructura } from './rutas-estructura';
 import { montarRutasInventario } from './rutas-inventario';
 import { montarRutasOrdenes } from './rutas-ordenes';
+import { montarRutasSolicitudes } from './rutas-solicitudes';
 import { montarRutasServicios } from './rutas-servicios';
 import { exigirTurnstile } from '../utils/turnstile';
 import { canjearAccesoSoporte, cambiarContrasena, cerrarSesion, ingresar, perfilDeSesion, restablecerContrasena, solicitarRecuperacion } from './auth';
@@ -120,6 +121,7 @@ export function crearRutasTaller(ctx: Contexto): Router {
   montarRutasChecklists(router, ctx);
   montarRutasServicios(router, ctx);
   montarRutasInventario(router, ctx);
+  montarRutasSolicitudes(router, ctx);
 
   return router;
 }

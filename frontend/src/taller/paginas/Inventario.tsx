@@ -12,6 +12,7 @@ import { Aviso, Campo, CLASE_INPUT, mensajeDe, Seccion, useLista } from '../comp
 import { useSesionTaller } from '../Sesion';
 import { dineroDe } from './ordenes/tipos';
 import { FichaMaterial, FormMaterial } from './inventario/FichaMaterial';
+import { Bandeja } from './inventario/Solicitudes';
 import { FilaCompra, FilaMaterial, Movimiento, OpcionesInventario } from './inventario/tipos';
 
 const hoyIso = (): string => {
@@ -354,6 +355,7 @@ export default function Inventario() {
   const opciones = useLista(() => api.get<OpcionesInventario>('/inventario-opciones'), [api]);
   const pestanas = [
     { k: 'materiales', t: 'Materiales', permiso: 'inventario.ver' },
+    { k: 'solicitudes', t: 'Solicitudes', permiso: 'solicitudes.ver' },
     { k: 'compras', t: 'Compras', permiso: 'inventario.ver' },
     { k: 'movimientos', t: 'Movimientos', permiso: 'inventario.ver' },
     { k: 'margenes', t: 'Márgenes', permiso: 'inventario.ver_costos' },
@@ -370,6 +372,7 @@ export default function Inventario() {
       {!o ? <p className="text-sm text-gray-500">Cargando…</p> : (
         <>
           {actual?.k === 'materiales' && <Materiales opciones={o} />}
+          {actual?.k === 'solicitudes' && <Bandeja />}
           {actual?.k === 'compras' && <Compras opciones={o} />}
           {actual?.k === 'movimientos' && <Movimientos opciones={o} />}
           {actual?.k === 'margenes' && <Margenes opciones={o} />}

@@ -40,6 +40,7 @@ interface OrdenCruda {
   equipo_id: number;
   cliente_id: number | null;
   tipo_orden_id: number;
+  sucursal_id: number;
   area_trabajo_id: number | null;
   estado_id: number;
   es_terminal: number;
@@ -52,7 +53,7 @@ interface OrdenCruda {
 async function ordenCruda(con: Ejecutor, id: number, bloquear = false): Promise<OrdenCruda> {
   const o = await una<OrdenCruda>(
     con,
-    `SELECT o.id, o.numero, o.equipo_id, o.cliente_id, o.tipo_orden_id, o.area_trabajo_id, o.estado_id, es.es_terminal, es.es_cancelado, es.sale_equipo, tor.es_pedido_especial, tor.codigo AS tipo_codigo
+    `SELECT o.id, o.numero, o.equipo_id, o.cliente_id, o.tipo_orden_id, o.sucursal_id, o.area_trabajo_id, o.estado_id, es.es_terminal, es.es_cancelado, es.sale_equipo, tor.es_pedido_especial, tor.codigo AS tipo_codigo
        FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id JOIN tipos_orden tor ON tor.id = o.tipo_orden_id WHERE o.id = ? ${bloquear ? 'FOR UPDATE' : ''}`,
     [id]
   );
@@ -422,6 +423,11 @@ export async function anularOrden(ctx: Contexto, t: TallerReq, actor: Actor, id:
     const cancelado = await una<{ id: number; es_terminal: number; sale_equipo: number }>(con, 'SELECT id, es_terminal, sale_equipo FROM estados_orden WHERE es_cancelado = 1 AND activo = 1 ORDER BY orden, id LIMIT 1');
     if (!cancelado) throw new ErrorApp(409, 'REGLA', 'El taller no tiene un estado de orden «cancelado» activo. Revise los estados de orden.');
     const ahora = ahoraDe(ctx);
+    const conMaterial = await una<{ n: number }>(con, "SELECT COUNT(*) AS n FROM lineas_orden WHERE orden_id = ? AND tipo = 'material' AND anulada_en IS NULL AND cantidad > 0", [id]);
+    if (Number(conMaterial?.n ?? 0) > 0) {
+      throw new ErrorApp(409, 'MATERIAL_DESPACHADO', `La orden ${o.numero} tiene materiales despachados. Devuélvalos a la bodega antes de anularla, para que el inventario quede en su lugar.`);
+    }
+    await ejecutar(con, "UPDATE solicitudes_material SET estado = 'anulada', anulada_en = ?, anulada_por_id = ?, motivo_anulacion = 'ORDEN ANULADA' WHERE orden_id = ? AND estado IN ('no_despachada', 'despachada_parcial')", [ahora, actor.usuarioId, id]);
     // Los trabajos sin terminar se anulan con la orden; los ya terminados se conservan.
     await ejecutar(con, `UPDATE registros_tiempo r JOIN lineas_orden l ON l.id = r.linea_id SET r.fin = ? WHERE l.orden_id = ? AND r.fin IS NULL`, [ahora, id]);
     await ejecutar(con, `UPDATE lineas_orden SET anulada_en = ?, anulada_por_id = ?, motivo_anulacion = ? WHERE orden_id = ? AND ${ACTIVA} AND estado <> 'terminado'`, [ahora, actor.usuarioId, `ORDEN ANULADA: ${m.nombre}`, id]);
@@ -448,7 +454,7 @@ export interface DatosLinea {
   notas?: string | null;
 }
 
-async function descuentoDelCliente(con: Ejecutor, clienteId: number | null, columna: 'descuento_trabajos' | 'descuento_otros'): Promise<number> {
+async function descuentoDelCliente(con: Ejecutor, clienteId: number | null, columna: 'descuento_trabajos' | 'descuento_otros' | 'descuento_materiales'): Promise<number> {
   if (!clienteId) return 0;
   const f = await una<{ d: number | null }>(con, `SELECT tc.${columna} AS d FROM clientes c JOIN tipos_cliente tc ON tc.id = c.tipo_cliente_id WHERE c.id = ?`, [clienteId]);
   return Number(f?.d ?? 0);
@@ -495,7 +501,7 @@ async function preciosDeServicio(con: Ejecutor, o: OrdenCruda, trabajoId: number
 }
 
 export async function agregarLinea(t: TallerReq, actor: Actor, ordenId: number, d: DatosLinea) {
-  if (d.tipo === 'material') throw new ErrorApp(409, 'SIN_INVENTARIO', 'Los materiales se cargan a la orden desde Inventario, que llega en una fase próxima. Por ahora use servicios y trabajos con terceros.');
+  if (d.tipo === 'material') throw new ErrorApp(409, 'SIN_INVENTARIO', 'Los materiales no se agregan a mano: se piden con una solicitud de material y, cuando bodega los despacha, se cargan solos a la orden.');
   const cfg = await configDePrecios(t);
   const notas = normalizarCampo('texto', d.notas);
   await transaccion(t.pool, async (con) => {
@@ -570,6 +576,9 @@ export async function actualizarLinea(
     ordenId = l.orden_id;
     const o = await ordenCruda(con, l.orden_id, true);
     exigirAbierta(o);
+    if (l.tipo === 'material' && (Object.entries(d) as Array<[string, unknown]>).some(([k, v]) => k !== 'notas' && v !== undefined)) {
+      throw new ErrorApp(409, 'REGLA', 'Las líneas de material salen de los despachos de bodega: no se editan. Para bajar la cantidad registre una devolución.');
+    }
     const sets: string[] = [];
     const v: unknown[] = [];
     if (d.notas !== undefined) {
@@ -632,12 +641,54 @@ export async function anularLinea(ctx: Contexto, t: TallerReq, actor: Actor, id:
     const l = await lineaCruda(con, id);
     ordenId = l.orden_id;
     exigirAbierta(await ordenCruda(con, l.orden_id, true));
+    if (l.tipo === 'material') throw new ErrorApp(409, 'REGLA', 'Un material despachado no se anula: devuélvalo a la bodega y la línea se ajusta sola.');
     await ejecutar(con, 'UPDATE registros_tiempo SET fin = ? WHERE linea_id = ? AND fin IS NULL', [ahoraDe(ctx), id]);
     await ejecutar(con, 'UPDATE lineas_orden SET anulada_en = ?, anulada_por_id = ?, motivo_anulacion = ? WHERE id = ?', [ahoraDe(ctx), actor.usuarioId, texto.slice(0, 300), id]);
     await recalcularTotales(con, l.orden_id, cfg);
     await bitacora(con, actor, { accion: 'orden_linea_anulada', entidad: 'lineas_orden', entidadId: id, motivo: texto });
   });
   return ordenId;
+}
+
+// ── Material despachado: lo usa Inventario ────────────────────────────────────────────
+/** Bloquea la orden y exige que siga abierta (despachar o devolver material en una orden cerrada o anulada no se permite). */
+export async function bloquearOrdenAbierta(con: Ejecutor, ordenId: number): Promise<{ id: number; numero: string; sucursal_id: number; cliente_id: number | null }> {
+  const o = await ordenCruda(con, ordenId, true);
+  exigirAbierta(o);
+  return { id: o.id, numero: o.numero, sucursal_id: o.sucursal_id, cliente_id: o.cliente_id };
+}
+
+/**
+ * Mantiene UNA línea de material por línea de solicitud. El precio por unidad se fija en el primer despacho (con el margen de ese
+ * momento) y no cambia; la cantidad sube con cada despacho y baja con cada devolución; el costo es lo que costó lo que sigue en la orden.
+ */
+export async function cargarMaterialEnOrden(
+  t: TallerReq,
+  con: Ejecutor,
+  actor: Actor,
+  d: { orden_id: number; solicitud_linea_id: number; material_id: number; descripcion: string; cantidad: number; costo: number; precio_unitario: number }
+): Promise<void> {
+  const o = await ordenCruda(con, d.orden_id, true);
+  exigirAbierta(o);
+  const cfg = await configDePrecios(t);
+  const l = await una<{ id: number; cantidad: number; costo: number; precio_unitario: number; descuento_pct: number }>(con, 'SELECT id, cantidad, costo, precio_unitario, descuento_pct FROM lineas_orden WHERE solicitud_linea_id = ? FOR UPDATE', [d.solicitud_linea_id]);
+  if (!l) {
+    if (d.cantidad <= 0) throw new ErrorApp(409, 'REGLA', 'No hay material cargado en la orden para devolver.');
+    const desc = await descuentoDelCliente(con, o.cliente_id, 'descuento_materiales');
+    await ejecutar(
+      con,
+      `INSERT INTO lineas_orden (orden_id, tipo, material_id, solicitud_linea_id, descripcion, cantidad, precio_unitario, descuento_pct, total_linea, costo, estado)
+       VALUES (?, 'material', ?, ?, ?, ?, ?, ?, ?, ?, 'terminado')`,
+      [d.orden_id, d.material_id, d.solicitud_linea_id, d.descripcion.slice(0, 250), d.cantidad, d.precio_unitario, desc, totalDeLinea(d.cantidad, d.precio_unitario, desc), r2(d.costo)]
+    );
+  } else {
+    const cantidad = Number(l.cantidad) + d.cantidad;
+    if (cantidad < 0) throw new ErrorApp(409, 'REGLA', 'No se puede devolver más de lo que está cargado en la orden.');
+    const costo = Math.max(0, r2(Number(l.costo) + d.costo));
+    await ejecutar(con, 'UPDATE lineas_orden SET cantidad = ?, total_linea = ?, costo = ? WHERE id = ?', [cantidad, totalDeLinea(cantidad, Number(l.precio_unitario), Number(l.descuento_pct)), cantidad === 0 ? 0 : costo, l.id]);
+  }
+  await recalcularTotales(con, d.orden_id, cfg);
+  await bitacora(con, actor, { accion: d.cantidad > 0 ? 'orden_material_cargado' : 'orden_material_devuelto', entidad: 'ordenes', entidadId: d.orden_id, despues: { material_id: d.material_id, cantidad: d.cantidad } });
 }
 
 /**

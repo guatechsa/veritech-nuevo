@@ -10,6 +10,7 @@ import { fechaHoraLocal } from '../../../utils/hora';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
 import { ErrorApi } from '../../../admin/api';
+import { SolicitudesOrden } from '../inventario/Solicitudes';
 import { ChecklistsOrden } from './ChecklistsOrden';
 import { FotosLinea } from './FotosLinea';
 import { DetalleOrden, dineroDe, ESTADO_LINEA, EstadoLinea, formatoHoras, LineaOrden, OpcionesOrden, PRIORIDAD, soloDia } from './tipos';
@@ -329,7 +330,7 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
       render: (l) => (
         <span className={l.anulada_en ? 'text-gray-400 line-through' : ''}>
           <span className="block font-medium text-gray-900">{l.descripcion}</span>
-          <span className="block text-xs text-gray-500">{l.tipo === 'servicio' ? l.trabajo_codigo : `Con terceros · ${l.proveedor ?? ''}`}{l.area ? ` · ${l.area}` : ''}</span>
+          <span className="block text-xs text-gray-500">{l.tipo === 'servicio' ? l.trabajo_codigo : l.tipo === 'material' ? 'Material despachado por bodega' : `Con terceros · ${l.proveedor ?? ''}`}{l.area ? ` · ${l.area}` : ''}</span>
           {l.anulada_en && <span className="block text-xs text-red-700 no-underline">Anulada: {l.motivo_anulacion}</span>}
         </span>
       ),
@@ -352,7 +353,7 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
       etiqueta: 'Estado',
       valor: (l) => l.estado,
       render: (l) =>
-        l.anulada_en ? <Badge variant="default">Anulada</Badge> : puedeEditar && l.tipo !== 'material' ? (
+        l.anulada_en ? <Badge variant="default">Anulada</Badge> : l.tipo === 'material' ? <Badge variant={l.cantidad > 0 ? 'success' : 'default'}>{l.cantidad > 0 ? 'Despachado' : 'Devuelto'}</Badge> : puedeEditar ? (
           <select className="rounded-md border border-gray-300 px-2 py-1 text-xs" value={l.estado} aria-label="Estado del trabajo" onChange={(e) => void accion(() => api.post(`/lineas/${l.id}/estado`, { estado: e.target.value }), 'No se pudo cambiar el estado')}>
             {(Object.keys(ESTADO_LINEA) as EstadoLinea[]).map((k) => <option key={k} value={k}>{ESTADO_LINEA[k].texto}</option>)}
           </select>
@@ -429,7 +430,6 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
                 {puedeEditar && <span className="flex gap-2"><Button size="sm" onClick={() => setVentana('servicio')}>Agregar trabajo</Button><Button size="sm" variant="outline" onClick={() => setVentana('tercero')}>Agregar trabajo con terceros</Button></span>}
               </div>
               <Tabla columnas={columnas} filas={orden.lineas} clave={(l) => l.id} vacio="Todavía no hay trabajos en esta orden." />
-              <p className="text-xs text-gray-500">Los materiales se cargarán a la orden desde Inventario (próxima fase).</p>
               {verPrecios && (
                 <dl className="ml-auto max-w-xs space-y-1 text-sm">
                   <div className="flex justify-between"><dt className="text-gray-600">Subtotal</dt><dd>{dineroDe(moneda, orden.subtotal)}</dd></div>
@@ -439,6 +439,8 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
                 </dl>
               )}
             </section>
+
+            {tiene('solicitudes.ver') && <SolicitudesOrden ordenId={orden.id} ordenNumero={orden.numero} cerrada={orden.es_terminal === 1} alCambiar={() => { cargar(); alCambiar(); }} />}
 
             {tiene('checklists.ver') && <ChecklistsOrden ordenId={orden.id} cerrada={orden.es_terminal === 1} alCambiar={() => { cargar(); alCambiar(); }} />}
 

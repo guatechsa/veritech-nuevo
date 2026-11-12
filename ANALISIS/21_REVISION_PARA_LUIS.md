@@ -75,3 +75,16 @@ Cada sección dice **qué probar** y **qué decidí yo mientras usted dormía** 
 
 ## Estado de verificación (2026-11-12)
 Probado en navegador real en el taller de práctica: 4c (agendar, reprogramar, recibir → orden), 4d (checklist con firma; bloquea sin foto/firma; queda cerrado), 4e (servicio programado, «urgente», agendar cita desde el servicio), 5a (material, compra, traslado). **Sin probar en pantalla:** cancelar cita y «no se presentó», subir fotos en checklist, «corregir cantidad» y márgenes (las pruebas automáticas sí los cubren). Para probar usted mismo la foto del checklist, hágalo desde un celular.
+
+## Fase 5b — Solicitudes de material, despacho y devoluciones
+**Qué probar:** (1) Abra una orden → sección «Materiales» → «Pedir materiales»: busque un material (ya con existencia por una compra) y pida 3. (2) Entre a Inventario → pestaña «Solicitudes» (como bodeguero o administrador): abra la solicitud, elija la bodega y despache 2 (queda DESPACHADA PARCIAL), luego el resto. (3) Vuelva a la orden: el material aparece en la lista de trabajos con su precio, el descuento del cliente y el total ya sumado. (4) En la solicitud, «Devolver» 1: sube la bodega y baja el cobro. (5) Pida otra y anúlela con un motivo.
+**Decidí yo:**
+- Una línea de material por material pedido: el **precio** se fija en el primer despacho (costo promedio más el margen de ese momento) y no cambia aunque después suba el costo; el **costo** sí se congela despacho por despacho.
+- El material despachado se cobra con el **descuento de materiales** del tipo de cliente (el de «trabajos» no se mezcla).
+- Despachar solo desde bodegas **de la misma sucursal de la orden**; no se puede despachar más de lo pedido ni más de lo que hay (todo o nada: si una línea falla, no se mueve nada).
+- Una orden **con material despachado no se anula**: hay que devolverlo antes (para que el inventario no quede con material «sin dueño»). Al anular la orden, las solicitudes que no se despacharon se anulan solas.
+- Una orden **cerrada o anulada** ya no recibe pedidos, despachos ni devoluciones (anular una solicitud pendiente sí se puede).
+- La solicitud la anula quien la pidió, o quien tenga el permiso «anular solicitudes»; una despachada completa no se anula (se devuelve el material); una despachada parcial se anula en lo que falta.
+- Una devolución no cambia el estado de la solicitud; el material vuelve con el costo con el que salió y el motivo es texto libre.
+- Quién hace qué: pide el supervisor y el técnico (y administrador/gerente); despacha, devuelve y anula el bodeguero (y administrador/gerente); los costos del despacho solo los ve quien tiene «ver costos».
+- Todavía no hay (5c): reservas, «cargar a la orden» desde una reserva, aplicabilidad de materiales a equipos, alertas de mínimo, el aviso por correo al bodeguero cuando llega una solicitud (Fase 7) ni el tablero del tiempo de despacho (Fase 7; los datos ya se guardan).

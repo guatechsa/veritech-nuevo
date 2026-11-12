@@ -306,6 +306,31 @@ export function hojasDeExportacion(): HojaExportada[] {
             FROM compra_lineas l JOIN compras c ON c.id = l.compra_id JOIN materiales m ON m.id = l.material_id ORDER BY c.id, l.id`,
     },
     {
+      nombre: 'Solicitudes de material',
+      sql: `SELECT s.id AS "Número", s.numero AS "Solicitud", o.numero AS "Orden", UPPER(REPLACE(s.estado, '_', ' ')) AS "Estado", ${FECHA_HORA('s.solicitada_en')} AS "Solicitada (UTC)", ${FECHA_HORA('s.primer_despacho_en')} AS "Primer despacho (UTC)",
+              ${FECHA_HORA('s.despachada_en')} AS "Completada (UTC)", co.nombre_completo AS "Solicitó", s.notas AS "Notas", ${FECHA_HORA('s.anulada_en')} AS "Anulada (UTC)", s.motivo_anulacion AS "Motivo de anulación"
+            FROM solicitudes_material s JOIN ordenes o ON o.id = s.orden_id LEFT JOIN usuarios u ON u.id = s.solicitante_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY s.id`,
+    },
+    {
+      nombre: 'Lineas de solicitudes',
+      sql: `SELECT l.id AS "Número", s.numero AS "Solicitud", m.codigo AS "Código", m.nombre AS "Material", l.cantidad_solicitada AS "Cantidad pedida", l.cantidad_despachada AS "Cantidad despachada"
+            FROM solicitud_lineas l JOIN solicitudes_material s ON s.id = l.solicitud_id JOIN materiales m ON m.id = l.material_id ORDER BY s.id, l.id`,
+    },
+    {
+      nombre: 'Despachos de material',
+      sql: `SELECT d.id AS "Número", s.numero AS "Solicitud", m.codigo AS "Código", m.nombre AS "Material", b.nombre AS "Bodega", d.cantidad AS "Cantidad", d.costo_unitario AS "Costo unitario (interno)",
+              ${FECHA_HORA('d.fecha')} AS "Fecha (UTC)", co.nombre_completo AS "Despachó"
+            FROM despachos_material d JOIN solicitud_lineas l ON l.id = d.solicitud_linea_id JOIN solicitudes_material s ON s.id = l.solicitud_id JOIN materiales m ON m.id = l.material_id
+              JOIN bodegas b ON b.id = d.bodega_id LEFT JOIN usuarios u ON u.id = d.despachado_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY d.id`,
+    },
+    {
+      nombre: 'Devoluciones de material',
+      sql: `SELECT d.id AS "Número", d.numero AS "Devolución", s.numero AS "Solicitud", m.codigo AS "Código", m.nombre AS "Material", b.nombre AS "Bodega", d.cantidad AS "Cantidad", d.costo_unitario AS "Costo unitario (interno)",
+              d.motivo AS "Motivo", ${FECHA_HORA('d.fecha')} AS "Fecha (UTC)", co.nombre_completo AS "Registró"
+            FROM devoluciones_material d JOIN solicitud_lineas l ON l.id = d.solicitud_linea_id JOIN solicitudes_material s ON s.id = l.solicitud_id JOIN materiales m ON m.id = l.material_id
+              JOIN bodegas b ON b.id = d.bodega_id LEFT JOIN usuarios u ON u.id = d.registrada_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY d.id`,
+    },
+    {
       nombre: 'Roles',
       sql: `SELECT r.codigo AS "Código", r.nombre AS "Nombre", r.descripcion AS "Descripción", ${SI_NO('r.es_sistema')} AS "Viene con el sistema", ${SI_NO('r.activo')} AS "Activo",
               (SELECT GROUP_CONCAT(rp.permiso_codigo ORDER BY rp.permiso_codigo SEPARATOR ', ') FROM rol_permisos rp WHERE rp.rol_id = r.id) AS "Permisos"

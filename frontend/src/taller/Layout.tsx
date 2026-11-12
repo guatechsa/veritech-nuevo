@@ -1,4 +1,4 @@
-import { CircleAlert, Home, KeyRound, LifeBuoy, LogOut, Menu, Settings, Truck, Users, Wrench, X } from 'lucide-react';
+import { CircleAlert, ClipboardList, Home, KeyRound, LifeBuoy, LogOut, Menu, Settings, Truck, Users, Wrench, X } from 'lucide-react';
 import { FormEvent, ReactNode, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
 import Button from '../components/ui-guatech/Button.jsx';
@@ -103,6 +103,7 @@ const MENU: Array<{ a: string; etiqueta: string; icono: typeof Home; permiso?: s
   { a: '', etiqueta: 'Inicio', icono: Home, fin: true },
   { a: '/clientes', etiqueta: 'Clientes', icono: Users, permiso: 'clientes.ver' },
   { a: '/equipos', etiqueta: 'Equipos', icono: Truck, permiso: 'equipos.ver' },
+  { a: '/ordenes', etiqueta: 'Órdenes', icono: ClipboardList, permiso: 'ordenes.ver' },
   { a: '/configuracion', etiqueta: 'Configuración', icono: Settings },
 ];
 

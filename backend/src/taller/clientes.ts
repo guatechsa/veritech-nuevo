@@ -56,7 +56,8 @@ export async function listarClientes(t: TallerReq, f: { buscar?: string; activo?
 
 /** Cuánta historia tiene un cliente (equipos, órdenes…). Las órdenes llegan en una fase posterior: aquí se irán sumando. */
 export async function historiaDeCliente(con: Ejecutor, clienteId: number): Promise<{ equipos: number; ordenes: number }> {
-  return { equipos: await contarEquiposDeCliente(con, clienteId), ordenes: 0 };
+  const o = await una<{ n: number }>(con, 'SELECT COUNT(*) AS n FROM ordenes WHERE cliente_id = ?', [clienteId]);
+  return { equipos: await contarEquiposDeCliente(con, clienteId), ordenes: Number(o?.n ?? 0) };
 }
 
 export async function obtenerCliente(t: TallerReq, id: number) {

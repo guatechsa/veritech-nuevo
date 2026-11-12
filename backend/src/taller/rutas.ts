@@ -9,6 +9,7 @@ import { montarRutasClientes } from './rutas-clientes';
 import { montarRutasDatos } from './rutas-datos';
 import { montarRutasEquipos } from './rutas-equipos';
 import { montarRutasEstructura } from './rutas-estructura';
+import { montarRutasOrdenes } from './rutas-ordenes';
 import { exigirTurnstile } from '../utils/turnstile';
 import { canjearAccesoSoporte, cambiarContrasena, cerrarSesion, ingresar, perfilDeSesion, restablecerContrasena, solicitarRecuperacion } from './auth';
 import { resolverTaller } from './resolutor';
@@ -110,6 +111,7 @@ export function crearRutasTaller(ctx: Contexto): Router {
   montarRutasClientes(router, ctx);
   montarRutasEquipos(router, ctx);
   montarRutasDatos(router, ctx);
+  montarRutasOrdenes(router, ctx);
 
   return router;
 }

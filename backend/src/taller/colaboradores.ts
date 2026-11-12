@@ -241,9 +241,15 @@ export async function actualizarColaborador(ctx: Contexto, t: TallerReq, actor: 
   return obtenerColaborador(t, id, ahoraDe(ctx));
 }
 
-/** Trabajos abiertos de un colaborador (las órdenes llegan en la Fase 4: hasta entonces no hay ninguno). */
-export async function trabajosAbiertosDe(_con: Ejecutor, _colaboradorId: number): Promise<number> {
-  return 0;
+/** Trabajos abiertos de un colaborador: líneas de órdenes abiertas que tiene asignadas y no están terminadas ni anuladas. */
+export async function trabajosAbiertosDe(con: Ejecutor, colaboradorId: number): Promise<number> {
+  const f = await una<{ n: number }>(
+    con,
+    `SELECT COUNT(*) AS n FROM lineas_orden l JOIN ordenes o ON o.id = l.orden_id JOIN estados_orden es ON es.id = o.estado_id
+      WHERE l.tecnico_id = ? AND l.anulada_en IS NULL AND l.estado <> 'terminado' AND es.es_terminal = 0`,
+    [colaboradorId]
+  );
+  return Number(f?.n ?? 0);
 }
 
 async function administradoresActivos(con: Ejecutor, excluyendoUsuarioId: number): Promise<number> {

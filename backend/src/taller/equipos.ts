@@ -9,9 +9,14 @@ import { borrarArchivo, guardarArchivo, urlFirmada } from './archivos';
 import { Actor, bitacora, conflictoSiDuplicado, TallerReq } from './comun';
 import { crearContadorEn, hoyDelTaller, listarContadores } from './contadores';
 
-/** Órdenes de trabajo de un equipo. Llegan en la Fase 4: mientras tanto el equipo no tiene ninguna. */
-export async function ordenesDeEquipo(_con: Ejecutor, _equipoId: number): Promise<{ abiertas: number; total: number }> {
-  return { abiertas: 0, total: 0 };
+/** Órdenes de trabajo de un equipo: cuántas siguen abiertas y cuántas tiene en total (anuladas incluidas). */
+export async function ordenesDeEquipo(con: Ejecutor, equipoId: number): Promise<{ abiertas: number; total: number }> {
+  const f = await una<{ total: number; abiertas: number | null }>(
+    con,
+    'SELECT COUNT(*) AS total, SUM(es.es_terminal = 0) AS abiertas FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id WHERE o.equipo_id = ?',
+    [equipoId]
+  );
+  return { abiertas: Number(f?.abiertas ?? 0), total: Number(f?.total ?? 0) };
 }
 
 // ── Tipos de equipo ──────────────────────────────────────────────────────────────────

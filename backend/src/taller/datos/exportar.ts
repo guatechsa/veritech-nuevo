@@ -165,6 +165,44 @@ export function hojasDeExportacion(): HojaExportada[] {
               LEFT JOIN niveles_tecnico nt ON nt.id = co.nivel_tecnico_id ORDER BY co.nombre_completo`,
     },
     {
+      nombre: 'Ordenes de trabajo',
+      sql: `SELECT o.numero AS "Número", tor.nombre AS "Tipo de orden", es.nombre AS "Estado", UPPER(o.prioridad) AS "Prioridad", c.nombre AS "Cliente", ${EQUIPO_REF} AS "Equipo", s.nombre AS "Sucursal",
+              ar.nombre AS "Área principal", co.nombre_completo AS "Responsable", o.descripcion AS "Descripción", ${FECHA_HORA('o.created_at')} AS "Creada (UTC)", ${FECHA('o.fecha_estimada_entrega')} AS "Entrega estimada",
+              ${FECHA_HORA('o.fecha_cierre')} AS "Cerrada (UTC)", o.referencia_factura_externa AS "Factura en el sistema de caja", mo.nombre AS "Motivo de anulación", o.motivo_anulacion_texto AS "Detalle de la anulación",
+              o.notificar_nombre AS "Avisar a", o.notificar_correo AS "Correo para avisar", o.notificar_telefono AS "Teléfono para avisar",
+              o.subtotal AS "Subtotal", o.descuento_total AS "Descuento", o.iva AS "IVA", o.total AS "Total"
+            FROM ordenes o JOIN tipos_orden tor ON tor.id = o.tipo_orden_id JOIN estados_orden es ON es.id = o.estado_id JOIN equipos e ON e.id = o.equipo_id JOIN sucursales s ON s.id = o.sucursal_id
+              LEFT JOIN clientes c ON c.id = o.cliente_id LEFT JOIN areas_trabajo ar ON ar.id = o.area_trabajo_id LEFT JOIN colaboradores co ON co.id = o.responsable_id LEFT JOIN motivos mo ON mo.id = o.motivo_anulacion_id
+            ORDER BY o.id`,
+    },
+    {
+      nombre: 'Lineas de ordenes',
+      sql: `SELECT l.id AS "Número", o.numero AS "Orden", UPPER(l.tipo) AS "Tipo", tr.codigo AS "Código del trabajo", l.descripcion AS "Descripción", p.nombre AS "Proveedor", l.cantidad AS "Cantidad",
+              l.precio_unitario AS "Precio unitario", l.descuento_pct AS "Descuento %", l.total_linea AS "Total de la línea", l.costo AS "Costo (interno)", l.horas_trabajo AS "Horas de trabajo",
+              l.tarifa_hora_aplicada AS "Tarifa por hora aplicada", l.costo_hora_aplicado AS "Costo por hora aplicado", ar.nombre AS "Área", co.nombre_completo AS "Técnico",
+              REPLACE(UPPER(l.estado), '_', ' ') AS "Estado", ${FECHA_HORA('l.inicio_en')} AS "Inició (UTC)", ${FECHA_HORA('l.fin_en')} AS "Terminó (UTC)", l.notas AS "Notas",
+              ${FECHA_HORA('l.anulada_en')} AS "Anulada el (UTC)", l.motivo_anulacion AS "Motivo de la anulación"
+            FROM lineas_orden l JOIN ordenes o ON o.id = l.orden_id LEFT JOIN trabajos tr ON tr.id = l.trabajo_id LEFT JOIN proveedores p ON p.id = l.proveedor_id
+              LEFT JOIN areas_trabajo ar ON ar.id = l.area_trabajo_id LEFT JOIN colaboradores co ON co.id = l.tecnico_id ORDER BY o.id, l.id`,
+    },
+    {
+      nombre: 'Historial de estados',
+      sql: `SELECT h.id AS "Número", o.numero AS "Orden", es.nombre AS "Estado", ${FECHA_HORA('h.desde')} AS "Desde (UTC)", co.nombre_completo AS "Quién lo cambió", h.motivo AS "Motivo"
+            FROM orden_estados_historial h JOIN ordenes o ON o.id = h.orden_id JOIN estados_orden es ON es.id = h.estado_id LEFT JOIN usuarios u ON u.id = h.usuario_id
+              LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY o.id, h.id`,
+    },
+    {
+      nombre: 'Ingresos de equipos',
+      sql: `SELECT i.id AS "Número", o.numero AS "Orden", ${EQUIPO_REF} AS "Equipo", ${FECHA_HORA('i.entrada_en')} AS "Entró (UTC)", ${FECHA_HORA('i.salida_en')} AS "Salió (UTC)", co.nombre_completo AS "Lo recibió"
+            FROM ingresos_equipo i JOIN ordenes o ON o.id = i.orden_id JOIN equipos e ON e.id = i.equipo_id LEFT JOIN usuarios u ON u.id = i.recibido_por_id
+              LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY o.id, i.id`,
+    },
+    {
+      nombre: 'Tarifas por area',
+      sql: `SELECT ar.nombre AS "Área", te.nombre AS "Tipo de equipo", ta.tarifa_venta_hora AS "Tarifa de venta por hora", ta.costo_hora AS "Costo por hora (interno)"
+            FROM tarifas_area ta JOIN areas_trabajo ar ON ar.id = ta.area_trabajo_id JOIN tipos_equipo te ON te.id = ta.tipo_equipo_id ORDER BY ar.nombre, te.nombre`,
+    },
+    {
       nombre: 'Roles',
       sql: `SELECT r.codigo AS "Código", r.nombre AS "Nombre", r.descripcion AS "Descripción", ${SI_NO('r.es_sistema')} AS "Viene con el sistema", ${SI_NO('r.activo')} AS "Activo",
               (SELECT GROUP_CONCAT(rp.permiso_codigo ORDER BY rp.permiso_codigo SEPARATOR ', ') FROM rol_permisos rp WHERE rp.rol_id = r.id) AS "Permisos"

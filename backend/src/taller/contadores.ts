@@ -202,7 +202,7 @@ async function recalcular(con: Ejecutor, contadorId: number): Promise<void> {
 }
 
 /** Registra la lectura dentro de una transacción ya abierta (la usa también la carga masiva). */
-export async function registrarLecturaEn(ctx: Contexto, t: TallerReq, con: Ejecutor, actor: Actor, contadorId: number, d: { valor: number; fecha?: string; notas?: string | null; origen?: 'manual' | 'importacion' }): Promise<number> {
+export async function registrarLecturaEn(ctx: Contexto, t: TallerReq, con: Ejecutor, actor: Actor, contadorId: number, d: { valor: number; fecha?: string; notas?: string | null; origen?: 'manual' | 'importacion' | 'orden'; orden_id?: number | null }): Promise<number> {
   const hoy = hoyDelTaller(ctx, t);
   const c = await obtenerContadorCrudo(con, contadorId);
   if (c.activo !== 1) throw new ErrorApp(409, 'REGLA', 'El contador está desactivado.');
@@ -221,11 +221,12 @@ export async function registrarLecturaEn(ctx: Contexto, t: TallerReq, con: Ejecu
   if (despues?.v !== null && despues?.v !== undefined && d.valor > Number(despues.v)) {
     throw new ErrorApp(409, 'LECTURA_MAYOR', `La lectura (${d.valor}) es mayor que una lectura posterior (${Number(despues.v)}). Revise la fecha o anule la posterior.`);
   }
-  const r = await ejecutar(con, "INSERT INTO lecturas_contador (contador_id, valor, fecha, origen, registrado_por, notas, estado) VALUES (?, ?, ?, ?, ?, ?, 'valida')", [
+  const r = await ejecutar(con, "INSERT INTO lecturas_contador (contador_id, valor, fecha, origen, orden_id, registrado_por, notas, estado) VALUES (?, ?, ?, ?, ?, ?, ?, 'valida')", [
     contadorId,
     d.valor,
     fecha,
     d.origen ?? 'manual',
+    d.orden_id ?? null,
     actor.usuarioId,
     normalizarCampo('texto', d.notas),
   ]);

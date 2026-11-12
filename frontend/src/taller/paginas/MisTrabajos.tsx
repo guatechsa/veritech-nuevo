@@ -3,6 +3,8 @@ import Badge from '../../components/ui-guatech/Badge.jsx';
 import Button from '../../components/ui-guatech/Button.jsx';
 import { Aviso, mensajeDe, useLista } from '../componentes/ui';
 import { useSesionTaller } from '../Sesion';
+import Modal from '../../components/ui-guatech/Modal.jsx';
+import { ChecklistsOrden } from './ordenes/ChecklistsOrden';
 import { FotoLinea, FotosLinea } from './ordenes/FotosLinea';
 import { ESTADO_LINEA, EstadoLinea, formatoHoras, PRIORIDAD } from './ordenes/tipos';
 
@@ -39,6 +41,8 @@ function Tarjeta({ t, ocupado, alCambiar }: { t: Trabajo; ocupado: boolean; alCa
   const { api } = useSesionTaller();
   const [error, setError] = useState('');
   const [fotos, setFotos] = useState(false);
+  const [checklists, setChecklists] = useState(false);
+  const { tiene } = useSesionTaller();
   const [trabajando, setTrabajando] = useState(false);
   const [ahora, setAhora] = useState(() => Date.now());
   useEffect(() => {
@@ -91,8 +95,10 @@ function Tarjeta({ t, ocupado, alCambiar }: { t: Trabajo; ocupado: boolean; alCa
         )}
         {(enCurso || t.estado !== 'pendiente') && <Button variant="primary" disabled={trabajando} onClick={() => void cambiar('terminado')}>Terminar</Button>}
         <Button variant="outline" onClick={() => setFotos(true)}>Fotos ({t.fotos.length})</Button>
+        {tiene('checklists.ver') && <Button variant="outline" onClick={() => setChecklists(true)}>Checklists</Button>}
       </div>
       {!enCurso && ocupado && <p className="text-xs text-gray-500">Ya tiene un trabajo en proceso: páuselo o termínelo para iniciar otro.</p>}
+      {checklists && <Modal onClose={() => setChecklists(false)} title={`Checklists de la orden ${t.numero}`} size="lg"><ChecklistsOrden ordenId={t.orden_id} cerrada={false} /></Modal>}
       {fotos && <FotosLinea lineaId={t.id} titulo={`${t.numero} · ${t.descripcion}`} fotos={t.fotos} puedeCambiar alCerrar={() => setFotos(false)} alCambiar={alCambiar} />}
     </article>
   );

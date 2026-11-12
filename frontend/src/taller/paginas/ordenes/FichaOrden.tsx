@@ -9,6 +9,8 @@ import Tabla, { Columna } from '../../../admin/componentes/Tabla';
 import { fechaHoraLocal } from '../../../utils/hora';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
+import { ErrorApi } from '../../../admin/api';
+import { ChecklistsOrden } from './ChecklistsOrden';
 import { FotosLinea } from './FotosLinea';
 import { DetalleOrden, dineroDe, ESTADO_LINEA, EstadoLinea, formatoHoras, LineaOrden, OpcionesOrden, PRIORIDAD, soloDia } from './tipos';
 
@@ -175,6 +177,29 @@ function PedirMotivo({ titulo, explicacion, etiqueta, boton, peligro, alCerrar, 
   );
 }
 
+function ExcepcionChecklist({ faltan, motivos, alCerrar, alConfirmar }: { faltan: string[]; motivos: Array<{ id: number; nombre: string }>; alCerrar: () => void; alConfirmar: (motivoId: number) => Promise<void> }) {
+  const [motivo, setMotivo] = useState('');
+  const [error, setError] = useState('');
+  const enviar = async (e: FormEvent): Promise<void> => {
+    e.preventDefault();
+    try {
+      await alConfirmar(Number(motivo));
+    } catch (err) {
+      setError(mensajeDe(err, 'No se pudo cerrar la orden'));
+    }
+  };
+  return (
+    <Modal onClose={alCerrar} title="Cerrar con una excepción" size="md">
+      <form onSubmit={enviar} className="space-y-3">
+        <Aviso mensaje={error} tipo="error" />
+        <p className="text-sm text-gray-700">A la orden le falta completar: <strong>{faltan.join(', ')}</strong>. Usted puede autorizar cerrarla igual; queda registrado quién lo autorizó y por qué.</p>
+        <Campo etiqueta="Motivo de la excepción"><select className={CLASE_INPUT} value={motivo} onChange={(e) => setMotivo(e.target.value)} required><option value="">Elija…</option>{motivos.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></Campo>
+        <div className="flex justify-end gap-2 border-t pt-3"><Button variant="outline" onClick={alCerrar}>Volver</Button><Button type="submit" variant="danger">Autorizar y cerrar</Button></div>
+      </form>
+    </Modal>
+  );
+}
+
 function AnularOrden({ orden, opciones, alCerrar, alListo }: { orden: DetalleOrden; opciones: OpcionesOrden; alCerrar: () => void; alListo: () => void }) {
   const { api } = useSesionTaller();
   const [motivo, setMotivo] = useState('');
@@ -246,7 +271,7 @@ function EditarDatos({ orden, opciones, alCerrar, alListo }: { orden: DetalleOrd
 }
 
 // ── La ficha ──────────────────────────────────────────────────────────────────────────
-type Ventana = 'servicio' | 'tercero' | 'anular' | 'editar' | 'reabrir' | { anularLinea: LineaOrden } | { fotosLinea: number } | null;
+type Ventana = 'servicio' | 'tercero' | 'anular' | 'editar' | 'reabrir' | 'excepcion' | { anularLinea: LineaOrden } | { fotosLinea: number } | null;
 
 export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: () => void; alCambiar: () => void }) {
   const { api, tiene, perfil } = useSesionTaller();
@@ -256,6 +281,7 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
   const [error, setError] = useState('');
   const [ventana, setVentana] = useState<Ventana>(null);
   const [nuevoEstado, setNuevoEstado] = useState('');
+  const [faltanChecklists, setFaltanChecklists] = useState<string[]>([]);
 
   const cargar = (): void => {
     api.get<DetalleOrden>(`/ordenes/${id}`).then((o) => { setOrden(o); setError(''); }).catch((e: unknown) => setError(mensajeDe(e, 'No se pudo cargar la orden')));
@@ -274,6 +300,19 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
       refrescar();
     } catch (e) {
       setError(mensajeDe(e, falla));
+    }
+  };
+
+  const aplicarEstado = async (): Promise<void> => {
+    setError('');
+    try {
+      await api.post(`/ordenes/${id}/estado`, { estado_id: Number(nuevoEstado) });
+      refrescar();
+    } catch (e) {
+      if (e instanceof ErrorApi && e.codigo === 'CHECKLIST_REQUERIDO' && tiene('checklists.excepcion')) {
+        setFaltanChecklists((e.detalle as { faltan: string[] }).faltan);
+        setVentana('excepcion');
+      } else setError(mensajeDe(e, 'No se pudo cambiar el estado'));
     }
   };
 
@@ -376,7 +415,7 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
                 </Campo>
                 <Button
                   disabled={!nuevoEstado || (orden.es_terminal === 1 && !tiene('ordenes.reabrir'))}
-                  onClick={() => (orden.es_terminal === 1 ? setVentana('reabrir') : void accion(() => api.post(`/ordenes/${orden.id}/estado`, { estado_id: Number(nuevoEstado) }), 'No se pudo cambiar el estado'))}
+                  onClick={() => (orden.es_terminal === 1 ? setVentana('reabrir') : void aplicarEstado())}
                 >
                   {orden.es_terminal === 1 ? 'Reabrir…' : 'Aplicar'}
                 </Button>
@@ -401,6 +440,8 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
               )}
             </section>
 
+            {tiene('checklists.ver') && <ChecklistsOrden ordenId={orden.id} cerrada={orden.es_terminal === 1} alCambiar={() => { cargar(); alCambiar(); }} />}
+
             <div className="grid gap-4 md:grid-cols-2">
               <section>
                 <h3 className="mb-1 text-sm font-bold text-gray-900">Historial de estados</h3>
@@ -423,6 +464,17 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
       {orden && ventana === 'tercero' && <AgregarTercero orden={orden} alCerrar={() => setVentana(null)} alListo={refrescar} />}
       {orden && ventana === 'anular' && opciones.datos && <AnularOrden orden={orden} opciones={opciones.datos} alCerrar={() => setVentana(null)} alListo={refrescar} />}
       {orden && ventana === 'editar' && opciones.datos && <EditarDatos orden={orden} opciones={opciones.datos} alCerrar={() => setVentana(null)} alListo={refrescar} />}
+      {orden && ventana === 'excepcion' && opciones.datos && (
+        <ExcepcionChecklist
+          faltan={faltanChecklists}
+          motivos={opciones.datos.motivos_excepcion}
+          alCerrar={() => setVentana(null)}
+          alConfirmar={async (motivoId) => {
+            await api.post(`/ordenes/${orden.id}/estado`, { estado_id: Number(nuevoEstado), excepcion_motivo_id: motivoId });
+            refrescar();
+          }}
+        />
+      )}
       {orden && ventana === 'reabrir' && (
         <PedirMotivo
           titulo={`Reabrir la orden ${orden.numero}`}

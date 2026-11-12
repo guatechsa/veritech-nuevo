@@ -65,7 +65,7 @@ function ListaEquipos() {
           <span className="flex gap-2"><Button variant="outline" size="sm" disabled={pagina <= 1} onClick={() => setPagina((p) => p - 1)}>Anterior</Button><Button variant="outline" size="sm" disabled={pagina >= paginas} onClick={() => setPagina((p) => p + 1)}>Siguiente</Button></span>
         </div>
       )}
-      {abierto !== null && <FichaEquipo inicial={abierto} alCerrar={cerrar} alCambiar={lista.recargar} />}
+      {abierto !== null && <FichaEquipo inicial={abierto} alCerrar={cerrar} alCambiar={lista.recargar} pestanaInicial={params.get('tab') === 'servicios' ? 'servicios' : undefined} />}
     </Seccion>
   );
 }

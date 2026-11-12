@@ -42,6 +42,8 @@ describe('la descarga cubre todas las tablas del taller', () => {
     const t = await tallerDePrueba(e);
     for (const h of hojasDeExportacion()) {
       const columnas = (await t.sql(async (c) => (await c.query(h.sql))[1])) as Array<{ name: string }>;
+      const nombresDeColumna = columnas.map((c) => c.name);
+      expect({ hoja: h.nombre, repetidas: nombresDeColumna.filter((n, i) => nombresDeColumna.indexOf(n) !== i) }).toEqual({ hoja: h.nombre, repetidas: [] });
       for (const col of columnas) expect({ hoja: h.nombre, columna: col.name, secreta: /hash|contrasena|token|secret/i.test(col.name) }).toMatchObject({ secreta: false });
     }
   });

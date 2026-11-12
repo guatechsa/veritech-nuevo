@@ -4,13 +4,14 @@ import Button from '../../../components/ui-guatech/Button.jsx';
 import Modal from '../../../components/ui-guatech/Modal.jsx';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
+import { ServiciosEquipo } from '../servicios/ServiciosEquipo';
 import { ContadoresEquipo } from './ContadoresEquipo';
 import { DatosEquipo } from './DatosEquipo';
 import { DocumentosEquipo, FotosEquipo } from './FotosYDocumentos';
 import { NotasEquipo, PersonasEquipo } from './PersonasYNotas';
 import { AvisoEquipo, DetalleEquipo, ESTADO_EQUIPO } from './tipos';
 
-type Pestana = 'datos' | 'contadores' | 'fotos' | 'documentos' | 'notas' | 'personas';
+type Pestana = 'datos' | 'contadores' | 'servicios' | 'fotos' | 'documentos' | 'notas' | 'personas';
 
 function CambiarEstado({ equipo, nuevo, alCerrar, alListo }: { equipo: DetalleEquipo; nuevo: 'activo' | 'fuera_de_servicio' | 'baja'; alCerrar: () => void; alListo: () => void }) {
   const { api } = useSesionTaller();
@@ -41,11 +42,11 @@ function CambiarEstado({ equipo, nuevo, alCerrar, alListo }: { equipo: DetalleEq
 }
 
 /** Ficha del equipo: lo que es, su uso (contadores), fotos, documentos, notas y quién lo maneja. */
-export function FichaEquipo({ inicial, alCerrar, alCambiar, clienteInicial }: { inicial: number | 'nuevo'; alCerrar: () => void; alCambiar: () => void; clienteInicial?: { id: number; nombre: string } | null }) {
+export function FichaEquipo({ inicial, alCerrar, alCambiar, clienteInicial, pestanaInicial }: { inicial: number | 'nuevo'; alCerrar: () => void; alCambiar: () => void; clienteInicial?: { id: number; nombre: string } | null; pestanaInicial?: Pestana }) {
   const { api, tiene } = useSesionTaller();
   const [id, setId] = useState<number | 'nuevo'>(inicial);
   const [detalle, setDetalle] = useState<DetalleEquipo | null>(null);
-  const [pestana, setPestana] = useState<Pestana>('datos');
+  const [pestana, setPestana] = useState<Pestana>(pestanaInicial ?? 'datos');
   const [avisos, setAvisos] = useState<AvisoEquipo[]>([]);
   const [error, setError] = useState('');
   const [cambiando, setCambiando] = useState<'activo' | 'fuera_de_servicio' | 'baja' | null>(null);
@@ -66,6 +67,7 @@ export function FichaEquipo({ inicial, alCerrar, alCambiar, clienteInicial }: { 
   const pestanas: Array<{ k: Pestana; t: string; visible: boolean }> = [
     { k: 'datos', t: 'Datos', visible: true },
     { k: 'contadores', t: 'Contadores', visible: id !== 'nuevo' && tiene('contadores.ver') },
+    { k: 'servicios', t: 'Servicios', visible: id !== 'nuevo' && tiene('servicios.ver') },
     { k: 'fotos', t: 'Fotos', visible: id !== 'nuevo' },
     { k: 'documentos', t: 'Documentos', visible: id !== 'nuevo' },
     { k: 'notas', t: 'Notas', visible: id !== 'nuevo' },
@@ -110,6 +112,7 @@ export function FichaEquipo({ inicial, alCerrar, alCambiar, clienteInicial }: { 
           />
         )}
         {detalle && pestana === 'contadores' && <ContadoresEquipo equipo={detalle} alCambiar={refrescar} />}
+        {detalle && pestana === 'servicios' && <ServiciosEquipo equipoId={detalle.id} />}
         {detalle && pestana === 'fotos' && <FotosEquipo equipo={detalle} alCambiar={refrescar} />}
         {detalle && pestana === 'documentos' && <DocumentosEquipo equipo={detalle} alCambiar={refrescar} />}
         {detalle && pestana === 'notas' && <NotasEquipo equipo={detalle} alCambiar={refrescar} />}

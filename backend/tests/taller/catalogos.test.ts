@@ -207,7 +207,7 @@ describe('catálogos simples', () => {
     await api.patch(`/catalogos/marcas/${m.id}`).send({ activo: false }).expect(200);
     expect((await api.get('/catalogos/marcas')).body.data).toHaveLength(0);
     expect((await api.get('/catalogos/marcas?inactivos=true')).body.data).toHaveLength(1);
-    expect((await api.get('/catalogos/etapas')).body.data.map((x: { codigo: string }) => x.codigo)).toEqual(['RECEPCION', 'CALIDAD', 'ENTREGA']);
+    expect((await api.get('/catalogos/etapas')).body.data.map((x: { codigo: string }) => x.codigo)).toEqual(['OPERACION', 'RECEPCION', 'MANTENIMIENTO', 'CALIDAD', 'ENTREGA']);
     expect((await api.post('/catalogos/etapas').send({ codigo: 'prueba', nombre: 'Prueba de ruta', color: 'rojo' })).status).toBe(400);
     expect((await api.post('/catalogos/etapas').send({ codigo: 'prueba', nombre: 'Prueba de ruta', color: '#ff0000', orden: 25 })).status).toBe(201);
     const motivos = (await api.get('/catalogos/motivos')).body.data as Array<{ tipo: string }>;

@@ -202,7 +202,7 @@ async function recalcular(con: Ejecutor, contadorId: number): Promise<void> {
 }
 
 /** Registra la lectura dentro de una transacción ya abierta (la usa también la carga masiva). */
-export async function registrarLecturaEn(ctx: Contexto, t: TallerReq, con: Ejecutor, actor: Actor, contadorId: number, d: { valor: number; fecha?: string; notas?: string | null; origen?: 'manual' | 'importacion' | 'orden'; orden_id?: number | null }): Promise<number> {
+export async function registrarLecturaEn(ctx: Contexto, t: TallerReq, con: Ejecutor, actor: Actor, contadorId: number, d: { valor: number; fecha?: string; notas?: string | null; origen?: 'manual' | 'importacion' | 'orden' | 'checklist'; orden_id?: number | null }): Promise<number> {
   const hoy = hoyDelTaller(ctx, t);
   const c = await obtenerContadorCrudo(con, contadorId);
   if (c.activo !== 1) throw new ErrorApp(409, 'REGLA', 'El contador está desactivado.');

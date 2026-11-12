@@ -2,12 +2,14 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { ProveedorUbicacion, UbicacionTaller } from './contexto';
 import LayoutTaller from './Layout';
 import { PaginaEntrarSoporte, PaginaIngresar, PaginaRecuperar, PaginaRestablecer } from './paginas/Acceso';
+import Citas from './paginas/Citas';
 import Clientes from './paginas/Clientes';
 import Configuracion from './paginas/Configuracion';
 import Equipos from './paginas/Equipos';
 import Inicio from './paginas/Inicio';
 import MisTrabajos from './paginas/MisTrabajos';
 import Ordenes from './paginas/Ordenes';
+import Servicios from './paginas/Servicios';
 import { ProveedorSesionTaller } from './Sesion';
 
 /**
@@ -27,8 +29,10 @@ export default function TallerApp({ ubicacion }: { ubicacion: UbicacionTaller })
             <Route index element={<Inicio />} />
             <Route path="clientes" element={<Clientes />} />
             <Route path="equipos" element={<Equipos />} />
+            <Route path="citas" element={<Citas />} />
             <Route path="mis-trabajos" element={<MisTrabajos />} />
             <Route path="ordenes" element={<Ordenes />} />
+            <Route path="servicios" element={<Servicios />} />
             <Route path="configuracion" element={<Configuracion />} />
           </Route>
           <Route path="*" element={<Navigate to={ubicacion.base || '/'} replace />} />

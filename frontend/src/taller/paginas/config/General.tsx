@@ -10,7 +10,7 @@ interface ClaveCfg {
   clave: string;
   tipo: 'texto' | 'correo' | 'opcion' | 'numero' | 'bool';
   etiqueta: string;
-  grupo: 'empresa' | 'regional' | 'precios';
+  grupo: 'empresa' | 'regional' | 'precios' | 'citas';
   opciones: string[] | null;
   min: number | null;
   max: number | null;
@@ -25,6 +25,7 @@ const GRUPOS: Array<{ g: ClaveCfg['grupo']; t: string }> = [
   { g: 'empresa', t: 'Datos de la empresa' },
   { g: 'regional', t: 'Zona horaria y moneda' },
   { g: 'precios', t: 'Impuestos y precios' },
+  { g: 'citas', t: 'Citas' },
 ];
 
 export function General() {

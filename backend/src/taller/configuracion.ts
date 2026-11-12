@@ -16,7 +16,7 @@ interface Clave {
   max?: number;
   min?: number;
   /** Datos de la empresa que salen en los documentos (se normalizan a MAYÚSCULAS). */
-  grupo: 'empresa' | 'regional' | 'precios';
+  grupo: 'empresa' | 'regional' | 'precios' | 'citas';
 }
 
 export const CLAVES: Record<string, Clave> = {
@@ -29,6 +29,7 @@ export const CLAVES: Record<string, Clave> = {
   moneda: { tipo: 'opcion', etiqueta: 'Moneda', defecto: 'GTQ', opciones: ['GTQ', 'USD'], grupo: 'regional' },
   iva_porcentaje: { tipo: 'numero', etiqueta: 'IVA (%)', defecto: '12', min: 0, max: 30, grupo: 'precios' },
   precios_incluyen_iva: { tipo: 'bool', etiqueta: 'Los precios ya incluyen IVA', defecto: 'false', grupo: 'precios' },
+  modo_citas: { tipo: 'opcion', etiqueta: 'Cupo diario de citas', defecto: 'SOLO COORDINAR', opciones: ['SOLO COORDINAR', 'RESERVAR'], grupo: 'citas' },
 };
 
 function zonaValida(z: string): boolean {

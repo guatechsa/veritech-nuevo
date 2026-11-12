@@ -32,3 +32,33 @@ Cada sección dice **qué probar** y **qué decidí yo mientras usted dormía** 
 - La recepción puede editar órdenes pero «Mis trabajos» solo existe para quien tiene el permiso `ordenes.trabajar` (administrador, gerente, supervisor y técnico).
 - Hasta 20 fotos por trabajo. Terminar no pide confirmación (se puede volver a poner en proceso).
 - El estado de la orden **no** cambia solo cuando empieza el primer trabajo: se cambia a mano (decisión pendiente: ¿quiere que pase sola a EN PROCESO?).
+
+## Fase 4c — Citas
+**Qué probar:** menú «Citas»: agende una cita para mañana (busque un equipo), reprográmela, cancele otra con motivo; cuando llegue la hora (o cambiando el día), pruebe «Recibir» (abre la orden) y «No se presentó». En Configuración → General, sección «Citas», cambie entre «solo coordinar» y «reservar», y en Configuración → Sucursales ponga un cupo diario para ver la diferencia.
+**Decidí yo:**
+- Hora de la cita: se escribe en la hora del taller; no se pueden agendar citas en días pasados.
+- «Solo coordinar» (por defecto): si el cupo del día está lleno, avisa pero agenda. «Reservar»: rechaza. El cupo es por sucursal.
+- «No se presentó» solo se puede marcar cuando ya pasó la hora de la cita.
+- «Recibir» pide además el permiso de crear órdenes. El técnico, el operador y el visualizador ven las citas pero no las agendan; el bodeguero no las ve.
+- Todavía no hay: planificación de carga por día/7 días/30 días (usa las horas estimadas; llega con los reportes), aviso al cliente de la cita (Fase 7), cita pedida por el cliente desde el portal (Fase 7) ni la cita nacida de un aviso de servicio (parte 4e).
+
+## Fase 4d — Checklists
+**Qué probar:** Configuración → Checklists: mire los tres sembrados (RECEPCIÓN, CALIDAD, ENTREGA), abra «Plantilla», cambie un ítem y guarde (crea la versión 2). En una orden, sección «Checklists» → agregue «Recepción del equipo», llénelo (pruebe un ítem en rojo: pide foto), pida la firma con el dedo (o con el ratón) y complételo. Luego, en «Qué checklists pide cada tipo de orden», pida CALIDAD «antes de cerrar la orden» (bloquear) y pruebe cerrar una orden sin él; si usted es administrador verá el botón para autorizar una excepción con motivo.
+**Decidí yo:**
+- Los requisitos vienen VACÍOS: ningún tipo de orden exige checklists hasta que usted lo configure (así no se frena el trabajo desde el primer día).
+- Un checklist completado no se puede reabrir (candado). Si se equivocan, se abre otro del mismo tipo.
+- Para completar RECEPCIÓN/ENTREGA se exige la lectura del medidor (se toma la de la orden si ya existe) y la firma del cliente.
+- Solo administrador y gerente configuran tipos y plantillas; administrador, gerente y supervisor autorizan excepciones; técnico, operador, recepción y supervisor llenan.
+- La firma y las fotos se guardan como archivos del taller y salen en la descarga de datos.
+- Todavía no hay: informe PDF del checklist (Fase 6/7), la cotización que nace de un ítem en rojo (Fase 6) ni plantillas con aplicabilidad por ítem (solo por tipo de equipo, como se decidió).
+
+## Fase 4e — Servicios programados
+**Qué probar:** menú «Servicios» → Programas: cree «Servicio de 10 000 km» para un tipo de equipo (contador: odómetro, cada 10 000). Vaya a un equipo de ese tipo → pestaña «Servicios»: verá cómo va el reloj; registre lecturas del odómetro para ver cómo pasa a próximo, urgente y vencido; cargue un servicio ya hecho; agende la cita desde «Servicios → Por atender».
+**Decidí yo:**
+- El primer servicio de un equipo se cuenta desde el valor INICIAL de su contador (si el odómetro entró con 125 000 km y el servicio es cada 10 000, toca a los 135 000), salvo que se cargue un servicio anterior.
+- Avisos sugeridos si no se escriben: kilómetros 1 000 y 200; millas 600 y 120; horas 50 y 10; días 30 y 7.
+- Los servicios se definen por TIPO de equipo y todos los equipos de ese tipo los siguen. Un servicio de un contador que el equipo no tiene aparece como «Sin contador».
+- Un checklist que respalda un servicio lo registra como realizado al completarse (con el valor del contador de ese momento).
+- Solo contadores del equipo (no de componentes) por ahora; la cascada «un servicio incluye a otro» (servicio_incluye) NO se construyó: era opcional y avanzada.
+- «Revisar avisos» solo anota qué avisos corresponde mandar; el correo o el aviso al teléfono llegan con la Fase 7 (avisos incluidos). Todavía no corre solo cada noche.
+- La planificación de carga y la «lista del servicio» (kit) quedaron fuera a propósito (usted pidió olvidar el kit).

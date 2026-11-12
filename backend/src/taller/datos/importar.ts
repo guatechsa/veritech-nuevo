@@ -7,6 +7,7 @@ import { crearClienteEn } from '../clientes';
 import { Actor, bitacora, TallerReq } from '../comun';
 import { hoyDelTaller, registrarLecturaEn } from '../contadores';
 import { crearEquipoEn } from '../equipos';
+import { registrarRealizadoEn } from '../servicios';
 import { Celda, claveDeEncabezado, FilaDeHoja, leerHoja } from './libro';
 
 /**
@@ -18,7 +19,7 @@ import { Celda, claveDeEncabezado, FilaDeHoja, leerHoja } from './libro';
  *    avanzan, NIT único, tipos de equipo, etc.).
  */
 
-export type TipoCarga = 'clientes' | 'equipos' | 'lecturas';
+export type TipoCarga = 'clientes' | 'equipos' | 'lecturas' | 'ultimos_servicios';
 
 export interface ColumnaCarga {
   clave: string;
@@ -491,10 +492,62 @@ const importadorLecturas: Importador = {
   },
 };
 
+// ── Últimos servicios (historial de mantenimiento) ───────────────────────────────────
+const COLUMNAS_SERVICIOS: ColumnaCarga[] = [
+  { clave: 'equipo', encabezado: 'EQUIPO', requerida: true, ayuda: 'Código interno, placa o serie del equipo (debe estar ya cargado).', ejemplo: 'CAM-014', tipo: 'texto', max: 60 },
+  { clave: 'cliente', encabezado: 'CLIENTE', requerida: false, ayuda: 'Solo si el código interno se repite entre clientes: nombre o NIT del dueño.', ejemplo: '', tipo: 'texto', max: 150 },
+  { clave: 'servicio', encabezado: 'SERVICIO', requerida: true, ayuda: 'Nombre del servicio programado que lleva el tipo de ese equipo (se definen en Servicios → Programas).', ejemplo: 'SERVICIO DE 10000 KM', tipo: 'texto', max: 120, lista: 'servicios' },
+  { clave: 'fecha', encabezado: 'FECHA', requerida: true, ayuda: 'Día en que se hizo el último servicio (no puede ser futuro).', ejemplo: '20/12/2025', tipo: 'fecha' },
+  { clave: 'contador', encabezado: 'CONTADOR', requerida: false, ayuda: 'Lo que marcaba el medidor ese día (no puede ser mayor que lo que marca hoy). En servicios por calendario se calcula solo.', ejemplo: '110000', tipo: 'numero' },
+];
+
+const importadorServicios: Importador = {
+  tipo: 'ultimos_servicios',
+  titulo: 'Últimos servicios',
+  descripcion: 'Una fila por servicio ya hecho (el último de cada tipo), para que el sistema sepa cuándo toca el siguiente. Los equipos y los servicios programados deben existir.',
+  columnas: COLUMNAS_SERVICIOS,
+  async listas(t) {
+    const nombres = await filas<{ nombre: string }>(t.pool, 'SELECT DISTINCT nombre FROM servicios_programados WHERE activo = 1 ORDER BY nombre');
+    return { servicios: nombres.map((x) => x.nombre) };
+  },
+  async preparar(e) {
+    const { porNombre, porNit } = await indicesDeClientes(e);
+    const equipos = new Map<string, Array<EquipoLigero & { tipo_equipo_id: number }>>();
+    for (const q of await filas<EquipoLigero & { tipo_equipo_id: number }>(e.con, 'SELECT id, tipo_equipo_id, cliente_id, codigo_interno, placa, serie FROM equipos')) {
+      for (const k of [q.codigo_interno, q.placa, q.serie]) agregar(equipos, k, q);
+    }
+    const servicios = await filas<{ id: number; tipo_equipo_id: number; nombre: string; es_calendario: number }>(e.con, 'SELECT sp.id, sp.tipo_equipo_id, sp.nombre, tc.es_calendario FROM servicios_programados sp JOIN tipos_contador tc ON tc.id = sp.tipo_contador_id WHERE sp.activo = 1');
+    return async (f) => {
+      const idTxt = f.requerido('equipo');
+      let candidatos = buscarEn(equipos, normaCodigo(idTxt));
+      const clienteTxt = f.texto('cliente');
+      if (clienteTxt) {
+        const clienteId = buscarCliente(clienteTxt, porNombre, porNit);
+        if (clienteId === null) throw new ErrorDeFila('CLIENTE', `No existe un cliente llamado «${clienteTxt}»`);
+        candidatos = candidatos.filter((q) => q.cliente_id === clienteId);
+      }
+      if (candidatos.length === 0) throw new ErrorDeFila('EQUIPO', `No se encontró un equipo con el código, placa o serie «${idTxt}». Cárguelo primero en la plantilla de equipos.`);
+      if (candidatos.length > 1) throw new ErrorDeFila('EQUIPO', `Hay ${candidatos.length} equipos con «${idTxt}». Agregue el cliente o use la serie para distinguirlos.`);
+      const equipo = candidatos[0] as EquipoLigero & { tipo_equipo_id: number };
+      const nombreServicio = f.requerido('servicio');
+      const delTipo = servicios.filter((s) => s.tipo_equipo_id === equipo.tipo_equipo_id);
+      const servicio = delTipo.find((s) => norma(s.nombre) === norma(nombreServicio));
+      if (!servicio) throw new ErrorDeFila('SERVICIO', `Los equipos de ese tipo no tienen un servicio llamado «${nombreServicio}». Los que tienen son: ${nombres(delTipo.map((s) => s.nombre))}`);
+      const fecha = f.fechaPasada('fecha', e.hoy);
+      if (fecha === null) throw new ErrorDeFila('FECHA', 'Falta este dato');
+      const contador = f.numero('contador');
+      if (contador === null && servicio.es_calendario !== 1) throw new ErrorDeFila('CONTADOR', 'Diga qué marcaba el medidor ese día (solo los servicios por calendario no lo piden)');
+      await registrarRealizadoEn(e.ctx, e.t, e.con, e.actor, { equipo_id: equipo.id, servicio_id: servicio.id, fecha, contador_valor: contador ?? undefined, origen: 'historico' });
+      e.contar('servicios');
+    };
+  },
+};
+
 export const IMPORTADORES: Record<TipoCarga, Importador> = {
   clientes: importadorClientes,
   equipos: importadorEquipos,
   lecturas: importadorLecturas,
+  ultimos_servicios: importadorServicios,
 };
 
 export function esTipoDeCarga(valor: string): valor is TipoCarga {

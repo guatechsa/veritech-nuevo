@@ -26,6 +26,7 @@ export interface OpcionesOrden {
   sucursales: Array<{ id: number; nombre: string; es_principal: number }>;
   areas: Array<{ id: number; nombre: string }>;
   motivos_anulacion: Array<{ id: number; nombre: string }>;
+  motivos_excepcion: Array<{ id: number; nombre: string }>;
 }
 
 export interface FilaOrden {

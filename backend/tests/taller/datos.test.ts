@@ -174,8 +174,8 @@ describe('plantillas de carga', () => {
     const t = await tallerDePrueba(e);
     const api = await admin(t);
     const tipos = await api.get('/importar/tipos');
-    expect(tipos.body.data.map((x: { tipo: string }) => x.tipo)).toEqual(['clientes', 'equipos', 'lecturas']);
-    for (const tipo of ['clientes', 'equipos', 'lecturas']) {
+    expect(tipos.body.data.map((x: { tipo: string }) => x.tipo)).toEqual(['clientes', 'equipos', 'lecturas', 'ultimos_servicios']);
+    for (const tipo of ['clientes', 'equipos', 'lecturas', 'ultimos_servicios']) {
       const r = await api.get(`/importar/${tipo}/plantilla`).buffer(true).parse(binario);
       expect(r.status).toBe(200);
       const wb = await leerLibro(r.body as Buffer);

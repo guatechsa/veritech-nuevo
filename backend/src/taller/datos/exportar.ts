@@ -73,6 +73,10 @@ const CATALOGOS: Array<[string, string]> = [
   ['tipo_equipo_documentos', 'Documentos por tipo de equipo'],
   ['tipo_equipo_componentes', 'Componentes por tipo de equipo'],
   ['contacto_equipos', 'Contactos por equipo'],
+  ['checklist_tipos', 'Tipos de checklist'],
+  ['checklist_tipo_tipos_equipo', 'Checklist por tipo de equipo'],
+  ['checklists_requeridos', 'Checklists requeridos'],
+  ['avisos_servicio', 'Avisos de servicios'],
 ];
 
 /** Las hojas del libro. Las primeras son las que el taller reconoce de inmediato; luego van los catálogos. */
@@ -203,6 +207,13 @@ export function hojasDeExportacion(): HojaExportada[] {
             FROM tarifas_area ta JOIN areas_trabajo ar ON ar.id = ta.area_trabajo_id JOIN tipos_equipo te ON te.id = ta.tipo_equipo_id ORDER BY ar.nombre, te.nombre`,
     },
     {
+      nombre: 'Citas',
+      sql: `SELECT c.id AS "Número", ${EQUIPO_REF} AS "Equipo", cl.nombre AS "Cliente", s.nombre AS "Sucursal", ${FECHA_HORA('c.fecha_hora')} AS "Fecha y hora (UTC)", c.horas_estimadas AS "Horas estimadas",
+              REPLACE(UPPER(c.estado), '_', ' ') AS "Estado", UPPER(c.origen) AS "Origen", ${FECHA_HORA('c.llegada_en')} AS "Llegó (UTC)", mo.nombre AS "Motivo de cancelación", c.motivo_cancelacion_texto AS "Detalle de la cancelación",
+              c.lectura_contador AS "Lectura dicha por el cliente", c.notas AS "Notas", (SELECT o.numero FROM ordenes o WHERE o.cita_id = c.id LIMIT 1) AS "Orden"
+            FROM citas c JOIN equipos e ON e.id = c.equipo_id JOIN sucursales s ON s.id = c.sucursal_id LEFT JOIN clientes cl ON cl.id = c.cliente_id LEFT JOIN motivos mo ON mo.id = c.motivo_cancelacion_id ORDER BY c.fecha_hora, c.id`,
+    },
+    {
       nombre: 'Tiempos de trabajo',
       sql: `SELECT r.id AS "Número", o.numero AS "Orden", l.descripcion AS "Trabajo", co.nombre_completo AS "Técnico", ${FECHA_HORA('r.inicio')} AS "Inició (UTC)", ${FECHA_HORA('r.fin')} AS "Terminó (UTC)",
               ROUND(TIMESTAMPDIFF(SECOND, r.inicio, COALESCE(r.fin, UTC_TIMESTAMP())) / 3600, 2) AS "Horas"
@@ -213,6 +224,53 @@ export function hojasDeExportacion(): HojaExportada[] {
       sql: `SELECT f.id AS "Número", o.numero AS "Orden", l.descripcion AS "Trabajo", UPPER(f.tipo) AS "Momento", f.descripcion AS "Descripción", CONCAT(a.id, '_', a.nombre_original) AS "Archivo (en el .zip)",
               ${FECHA_HORA('f.created_at')} AS "Subida el (UTC)"
             FROM linea_fotos f JOIN lineas_orden l ON l.id = f.linea_id JOIN ordenes o ON o.id = l.orden_id JOIN archivos a ON a.id = f.archivo_id ORDER BY o.id, f.id`,
+    },
+    {
+      nombre: 'Plantillas de checklist',
+      sql: `SELECT ct.nombre AS "Checklist", p.version AS "Versión", ${SI_NO('p.vigente')} AS "Vigente", s.nombre AS "Sección", s.orden AS "Orden de la sección", i.orden AS "Orden del ítem",
+              i.descripcion AS "Ítem", UPPER(REPLACE(i.tipo_respuesta, '_', ' ')) AS "Tipo de respuesta", i.minimo AS "Mínimo", i.maximo AS "Máximo",
+              (SELECT GROUP_CONCAT(o.texto ORDER BY o.orden SEPARATOR ' | ') FROM checklist_item_opciones o WHERE o.item_id = i.id) AS "Opciones"
+            FROM checklist_items i JOIN checklist_plantillas p ON p.id = i.plantilla_id JOIN checklist_tipos ct ON ct.id = p.checklist_tipo_id JOIN checklist_secciones s ON s.id = i.seccion_id
+            ORDER BY ct.nombre, p.version, s.orden, i.orden`,
+    },
+    {
+      nombre: 'Checklists',
+      sql: `SELECT c.id AS "Número", ct.nombre AS "Checklist", p.version AS "Versión de la plantilla", o.numero AS "Orden", ${EQUIPO_REF} AS "Equipo", REPLACE(UPPER(c.estado), '_', ' ') AS "Estado",
+              ${FECHA_HORA('c.created_at')} AS "Abierto (UTC)", ${FECHA_HORA('c.completado_en')} AS "Completado (UTC)", co.nombre_completo AS "Completado por", mo.nombre AS "Excepción autorizada"
+            FROM checklists c JOIN checklist_tipos ct ON ct.id = c.tipo_id JOIN checklist_plantillas p ON p.id = c.plantilla_id JOIN equipos e ON e.id = c.equipo_id LEFT JOIN ordenes o ON o.id = c.orden_id
+              LEFT JOIN usuarios u ON u.id = c.completado_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id LEFT JOIN motivos mo ON mo.id = c.excepcion_motivo_id ORDER BY c.id`,
+    },
+    {
+      nombre: 'Respuestas de checklists',
+      sql: `SELECT r.id AS "Número", c.id AS "Checklist", ct.nombre AS "Tipo", r.seccion AS "Sección", r.descripcion AS "Ítem", UPPER(r.semaforo) AS "Semáforo", IF(r.si_no IS NULL, NULL, IF(r.si_no = 1, 'SI', 'NO')) AS "Sí / No",
+              r.valor_numero AS "Valor numérico", r.valor_texto AS "Texto", r.opcion_texto AS "Opción", r.nota AS "Nota", (SELECT COUNT(*) FROM checklist_fotos f WHERE f.respuesta_id = r.id) AS "Fotos",
+              co.nombre_completo AS "Respondió", ${FECHA_HORA('r.respondido_en')} AS "Respondido (UTC)"
+            FROM checklist_respuestas r JOIN checklists c ON c.id = r.checklist_id JOIN checklist_tipos ct ON ct.id = c.tipo_id LEFT JOIN usuarios u ON u.id = r.respondido_por_id
+              LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY c.id, r.orden`,
+    },
+    {
+      nombre: 'Fotos de checklists',
+      sql: `SELECT f.id AS "Número", r.checklist_id AS "Checklist", r.descripcion AS "Ítem", CONCAT(a.id, '_', a.nombre_original) AS "Archivo (en el .zip)"
+            FROM checklist_fotos f JOIN checklist_respuestas r ON r.id = f.respuesta_id JOIN archivos a ON a.id = f.archivo_id ORDER BY r.checklist_id, f.id`,
+    },
+    {
+      nombre: 'Firmas de checklists',
+      sql: `SELECT f.id AS "Número", f.checklist_id AS "Checklist", f.firmante_nombre AS "Firmó", ${FECHA_HORA('f.firmado_en')} AS "Firmado (UTC)", CONCAT(a.id, '_', a.nombre_original) AS "Archivo (en el .zip)"
+            FROM firmas f JOIN archivos a ON a.id = f.archivo_id ORDER BY f.id`,
+    },
+    {
+      nombre: 'Servicios programados',
+      sql: `SELECT sp.id AS "Número", te.nombre AS "Tipo de equipo", sp.nombre AS "Servicio", tr.codigo AS "Código del trabajo", UPPER(REPLACE(sp.tipo, '_', ' ')) AS "Tipo", tc.nombre AS "Contador",
+              sp.intervalo AS "Cada", sp.aviso_proximo AS "Aviso próximo faltando", sp.aviso_urgente AS "Aviso urgente faltando", ct.nombre AS "Checklist", ${SI_NO('sp.activo')} AS "Activo"
+            FROM servicios_programados sp JOIN tipos_equipo te ON te.id = sp.tipo_equipo_id JOIN trabajos tr ON tr.id = sp.trabajo_id JOIN tipos_contador tc ON tc.id = sp.tipo_contador_id
+              LEFT JOIN checklist_tipos ct ON ct.id = sp.checklist_tipo_id ORDER BY te.nombre, sp.nombre`,
+    },
+    {
+      nombre: 'Servicios realizados',
+      sql: `SELECT r.id AS "Número", ${EQUIPO_REF} AS "Equipo", sp.nombre AS "Servicio", ${FECHA('r.fecha')} AS "Fecha", r.contador_valor AS "Contador", UPPER(r.origen) AS "Cómo se registró", r.motivo AS "Motivo",
+              o.numero AS "Orden", co.nombre_completo AS "Registró", ${FECHA_HORA('r.anulado_en')} AS "Anulado el (UTC)", r.motivo_anulacion AS "Motivo de la anulación"
+            FROM servicios_realizados r JOIN equipos e ON e.id = r.equipo_id JOIN servicios_programados sp ON sp.id = r.servicio_id LEFT JOIN ordenes o ON o.id = r.orden_id
+              LEFT JOIN usuarios u ON u.id = r.registrado_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY r.equipo_id, r.fecha, r.id`,
     },
     {
       nombre: 'Roles',

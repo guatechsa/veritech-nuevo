@@ -5,7 +5,7 @@ import Tabla, { Columna } from '../../../admin/componentes/Tabla';
 import { Aviso, mensajeDe, Seccion, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
 
-type TipoCarga = 'clientes' | 'equipos' | 'lecturas';
+type TipoCarga = 'clientes' | 'equipos' | 'lecturas' | 'ultimos_servicios';
 
 interface InfoCarga {
   tipo: TipoCarga;
@@ -33,6 +33,7 @@ const NOMBRES_CREADOS: Record<string, [string, string]> = {
   equipos: ['equipo', 'equipos'],
   contadores: ['medidor', 'medidores'],
   lecturas: ['lectura', 'lecturas'],
+  servicios: ['servicio anterior', 'servicios anteriores'],
   marcas: ['marca nueva', 'marcas nuevas'],
 };
 

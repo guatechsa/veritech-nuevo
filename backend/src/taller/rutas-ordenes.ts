@@ -105,8 +105,8 @@ export function montarRutasOrdenes(router: Router, ctx: Contexto): void {
   });
 
   router.post('/ordenes/:id/estado', exigirPermiso('ordenes.cambiar_estado'), async (req, res) => {
-    const d = validar(z.object({ estado_id: idPositivo, motivo: nulo(300) }), req.body);
-    await cambiarEstadoOrden(ctx, taller(req), actorDe(req), idDe(req), d, req.sesionTaller!.permisos.has('ordenes.reabrir'));
+    const d = validar(z.object({ estado_id: idPositivo, motivo: nulo(300), excepcion_motivo_id: idPositivo.optional() }), req.body);
+    await cambiarEstadoOrden(ctx, taller(req), actorDe(req), idDe(req), d, req.sesionTaller!.permisos.has('ordenes.reabrir'), req.sesionTaller!.permisos.has('checklists.excepcion'));
     res.json({ success: true, data: await fichaPara(ctx, req, idDe(req)) });
   });
 

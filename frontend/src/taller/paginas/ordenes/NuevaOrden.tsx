@@ -6,7 +6,7 @@ import { Aviso, Campo, CLASE_INPUT, mensajeDe, useLista } from '../../componente
 import { useSesionTaller } from '../../Sesion';
 import { OpcionesOrden } from './tipos';
 
-interface EquipoFila {
+export interface EquipoFila {
   id: number;
   descripcion: string;
   cliente: string | null;
@@ -23,7 +23,7 @@ interface ContadorEquipo {
 }
 
 /** Busca el equipo por código, placa, serie, modelo o cliente (la lista puede ser enorme, así que no se carga completa). */
-function BuscadorEquipo({ valor, alCambiar }: { valor: EquipoFila | null; alCambiar: (e: EquipoFila | null) => void }) {
+export function BuscadorEquipo({ valor, alCambiar }: { valor: EquipoFila | null; alCambiar: (e: EquipoFila | null) => void }) {
   const { api } = useSesionTaller();
   const [texto, setTexto] = useState('');
   const [resultados, setResultados] = useState<EquipoFila[]>([]);

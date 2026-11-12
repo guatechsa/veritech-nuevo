@@ -11,6 +11,7 @@ import { useSesionTaller } from '../Sesion';
 import { Colaboradores } from './config/Colaboradores';
 import { DatosDelTaller } from './config/Datos';
 import { CatalogosDeTrabajo } from './config/Catalogos';
+import { ChecklistsConfig } from './config/Checklists';
 import { Bitacora, General } from './config/General';
 import { AreasYBodegas, Sucursales } from './config/Estructura';
 import { JornadaYAusencias } from './config/Jornada';
@@ -171,6 +172,7 @@ const PESTANAS: Pestana[] = [
   { clave: 'jornada', texto: 'Jornada y ausencias', permiso: 'colaboradores.ver', vista: () => <JornadaYAusencias /> },
   { clave: 'catalogos', texto: 'Catálogos de trabajo', permiso: 'catalogos.ver', vista: () => <CatalogosDeTrabajo /> },
   { clave: 'datos', texto: 'Cargar y descargar datos', vista: () => <DatosDelTaller /> },
+  { clave: 'checklists', texto: 'Checklists', permiso: 'checklists.ver', vista: () => <ChecklistsConfig /> },
   { clave: 'suscripcion', texto: 'Suscripción y pagos', permiso: 'suscripcion.ver', vista: () => <PestanaSuscripcion /> },
   { clave: 'bitacora', texto: 'Bitácora', permiso: 'bitacora.ver', vista: () => <Bitacora /> },
   { clave: 'cuenta', texto: 'Mi cuenta', vista: () => <PestanaCuenta /> },

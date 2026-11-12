@@ -5,6 +5,7 @@ import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { validarFechaRazonable } from '../utils/fechas';
 import { normalizarCampo } from '../utils/texto';
 import { borrarArchivo, guardarArchivo, urlFirmada } from './archivos';
+import { checklistsPendientes } from './checklists';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
 import { leerConfiguracion } from './configuracion';
 import { hoyDelTaller, registrarLecturaEn } from './contadores';
@@ -88,15 +89,16 @@ async function configDePrecios(t: TallerReq): Promise<{ ivaPct: number; incluyeI
 
 // ── Opciones para los formularios ─────────────────────────────────────────────────────
 export async function opcionesDeOrden(t: TallerReq) {
-  const [tipos, estados, responsables, sucursales, areas, motivos] = await Promise.all([
+  const [tipos, estados, responsables, sucursales, areas, motivos, excepciones] = await Promise.all([
     filas<{ id: number; codigo: string; nombre: string; es_default: number; es_pedido_especial: number }>(t.pool, 'SELECT id, codigo, nombre, es_default, es_pedido_especial FROM tipos_orden WHERE activo = 1 ORDER BY es_default DESC, nombre'),
     filas<{ id: number; codigo: string; nombre: string; color: string; es_inicial: number; es_terminal: number; es_cancelado: number }>(t.pool, 'SELECT id, codigo, nombre, color, es_inicial, es_terminal, es_cancelado FROM estados_orden WHERE activo = 1 ORDER BY orden, id'),
     filas<{ id: number; nombre: string }>(t.pool, 'SELECT id, nombre_completo AS nombre FROM colaboradores WHERE activo = 1 ORDER BY nombre_completo'),
     filas<{ id: number; nombre: string; es_principal: number }>(t.pool, 'SELECT id, nombre, es_principal FROM sucursales WHERE activo = 1 ORDER BY es_principal DESC, nombre'),
     filas<{ id: number; nombre: string }>(t.pool, 'SELECT id, nombre FROM areas_trabajo WHERE activo = 1 ORDER BY nombre'),
     filas<{ id: number; nombre: string }>(t.pool, "SELECT id, nombre FROM motivos WHERE tipo = 'anulacion_orden' AND activo = 1 ORDER BY nombre"),
+    filas<{ id: number; nombre: string }>(t.pool, "SELECT id, nombre FROM motivos WHERE tipo = 'excepcion_checklist' AND activo = 1 ORDER BY nombre"),
   ]);
-  return { tipos_orden: tipos, estados, responsables, sucursales, areas, motivos_anulacion: motivos, prioridades: ['baja', 'media', 'alta', 'urgente'], estados_de_linea: ESTADOS_DE_LINEA };
+  return { tipos_orden: tipos, estados, responsables, sucursales, areas, motivos_anulacion: motivos, motivos_excepcion: excepciones, prioridades: ['baja', 'media', 'alta', 'urgente'], estados_de_linea: ESTADOS_DE_LINEA };
 }
 
 // ── Listado ───────────────────────────────────────────────────────────────────────────
@@ -268,59 +270,62 @@ function textosDe(d: DatosOrden) {
   };
 }
 
-export async function crearOrden(ctx: Contexto, t: TallerReq, actor: Actor, d: DatosOrdenNueva) {
+/** Crea la orden dentro de una transacción ya abierta (la usa también «recibir una cita», que además marca la cita como presentada). */
+export async function crearOrdenEn(ctx: Contexto, t: TallerReq, con: PoolConnection, actor: Actor, d: DatosOrdenNueva & { cita_id?: number | null }): Promise<{ id: number; avisos: Array<{ tipo: string; numero: string }> }> {
   const hoy = hoyDelTaller(ctx, t);
   const ahora = ahoraDe(ctx);
   const txt = textosDe(d);
-  const { id, avisos } = await transaccion(t.pool, async (con) => {
-    const e = await una<{ estado: string; cliente_id: number | null }>(con, 'SELECT estado, cliente_id FROM equipos WHERE id = ? FOR UPDATE', [d.equipo_id]);
-    if (!e) throw new ErrorValidacion('El equipo elegido no existe');
-    if (e.estado === 'baja') throw new ErrorApp(409, 'REGLA', 'El equipo está dado de baja: reactívelo antes de abrirle una orden.');
-    const tipo = d.tipo_orden_id
-      ? await una<{ id: number; codigo: string; es_pedido_especial: number; activo: number }>(con, 'SELECT id, codigo, es_pedido_especial, activo FROM tipos_orden WHERE id = ?', [d.tipo_orden_id])
-      : await una<{ id: number; codigo: string; es_pedido_especial: number; activo: number }>(con, 'SELECT id, codigo, es_pedido_especial, activo FROM tipos_orden WHERE es_default = 1 AND activo = 1 LIMIT 1');
-    if (!tipo || tipo.activo !== 1) throw new ErrorValidacion('El tipo de orden elegido no existe o está desactivado');
-    const estado = await una<{ id: number }>(con, 'SELECT id FROM estados_orden WHERE es_inicial = 1 AND activo = 1 ORDER BY orden, id LIMIT 1');
-    if (!estado) throw new ErrorApp(409, 'REGLA', 'El taller no tiene un estado inicial de orden activo. Revise los estados de orden.');
-    let sucursalId = d.sucursal_id ?? null;
-    if (!sucursalId) {
-      const propia = await una<{ id: number }>(con, 'SELECT s.id FROM usuarios u JOIN colaboradores c ON c.id = u.colaborador_id JOIN sucursales s ON s.id = c.sucursal_id WHERE u.id = ? AND s.activo = 1', [actor.usuarioId]);
-      sucursalId = propia?.id ?? (await una<{ id: number }>(con, 'SELECT id FROM sucursales WHERE activo = 1 ORDER BY es_principal DESC, id LIMIT 1'))?.id ?? null;
-    }
-    const suc = sucursalId ? await una<{ activo: number }>(con, 'SELECT activo FROM sucursales WHERE id = ?', [sucursalId]) : null;
-    if (!suc || suc.activo !== 1) throw new ErrorValidacion('La sucursal elegida no existe o está desactivada');
-    await validarReferencias(con, d, hoy);
+  const e = await una<{ estado: string; cliente_id: number | null }>(con, 'SELECT estado, cliente_id FROM equipos WHERE id = ? FOR UPDATE', [d.equipo_id]);
+  if (!e) throw new ErrorValidacion('El equipo elegido no existe');
+  if (e.estado === 'baja') throw new ErrorApp(409, 'REGLA', 'El equipo está dado de baja: reactívelo antes de abrirle una orden.');
+  const tipo = d.tipo_orden_id
+    ? await una<{ id: number; codigo: string; es_pedido_especial: number; activo: number }>(con, 'SELECT id, codigo, es_pedido_especial, activo FROM tipos_orden WHERE id = ?', [d.tipo_orden_id])
+    : await una<{ id: number; codigo: string; es_pedido_especial: number; activo: number }>(con, 'SELECT id, codigo, es_pedido_especial, activo FROM tipos_orden WHERE es_default = 1 AND activo = 1 LIMIT 1');
+  if (!tipo || tipo.activo !== 1) throw new ErrorValidacion('El tipo de orden elegido no existe o está desactivado');
+  const estado = await una<{ id: number }>(con, 'SELECT id FROM estados_orden WHERE es_inicial = 1 AND activo = 1 ORDER BY orden, id LIMIT 1');
+  if (!estado) throw new ErrorApp(409, 'REGLA', 'El taller no tiene un estado inicial de orden activo. Revise los estados de orden.');
+  let sucursalId = d.sucursal_id ?? null;
+  if (!sucursalId) {
+    const propia = await una<{ id: number }>(con, 'SELECT s.id FROM usuarios u JOIN colaboradores c ON c.id = u.colaborador_id JOIN sucursales s ON s.id = c.sucursal_id WHERE u.id = ? AND s.activo = 1', [actor.usuarioId]);
+    sucursalId = propia?.id ?? (await una<{ id: number }>(con, 'SELECT id FROM sucursales WHERE activo = 1 ORDER BY es_principal DESC, id LIMIT 1'))?.id ?? null;
+  }
+  const suc = sucursalId ? await una<{ activo: number }>(con, 'SELECT activo FROM sucursales WHERE id = ?', [sucursalId]) : null;
+  if (!suc || suc.activo !== 1) throw new ErrorValidacion('La sucursal elegida no existe o está desactivada');
+  await validarReferencias(con, d, hoy);
 
-    const abierta = await una<{ numero: string }>(
-      con,
-      'SELECT o.numero FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id WHERE o.equipo_id = ? AND es.es_terminal = 0 ORDER BY o.id DESC LIMIT 1',
-      [d.equipo_id]
-    );
-    const n = await siguienteNumero(con, `ORD-${tipo.codigo}`);
-    const numero = `${tipo.codigo}-${String(n).padStart(6, '0')}`;
-    const r = await ejecutar(
-      con,
-      `INSERT INTO ordenes (numero, cliente_id, equipo_id, sucursal_id, area_trabajo_id, tipo_orden_id, estado_id, prioridad, descripcion, referencia_factura_externa, responsable_id, creada_por_id,
+  const abierta = await una<{ numero: string }>(
+    con,
+    'SELECT o.numero FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id WHERE o.equipo_id = ? AND es.es_terminal = 0 ORDER BY o.id DESC LIMIT 1',
+    [d.equipo_id]
+  );
+  const n = await siguienteNumero(con, `ORD-${tipo.codigo}`);
+  const numero = `${tipo.codigo}-${String(n).padStart(6, '0')}`;
+  const r = await ejecutar(
+    con,
+    `INSERT INTO ordenes (numero, cliente_id, equipo_id, sucursal_id, area_trabajo_id, tipo_orden_id, estado_id, prioridad, origen, cita_id, descripcion, referencia_factura_externa, responsable_id, creada_por_id,
                             fecha_estimada_entrega, notificar_nombre, notificar_correo, notificar_telefono)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [numero, e.cliente_id, d.equipo_id, sucursalId, d.area_trabajo_id ?? null, tipo.id, estado.id, d.prioridad ?? 'media', txt.descripcion ?? null, txt.referencia ?? null, d.responsable_id ?? null,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [numero, e.cliente_id, d.equipo_id, sucursalId, d.area_trabajo_id ?? null, tipo.id, estado.id, d.prioridad ?? 'media', d.cita_id ? 'cita' : 'directo', d.cita_id ?? null, txt.descripcion ?? null, txt.referencia ?? null, d.responsable_id ?? null,
        actor.usuarioId, d.fecha_estimada_entrega ?? null, txt.nombre ?? null, txt.correo ?? null, txt.telefono ?? null]
-    );
-    const ordenId = r.insertId;
-    await ejecutar(con, 'INSERT INTO orden_estados_historial (orden_id, estado_id, desde, usuario_id) VALUES (?, ?, ?, ?)', [ordenId, estado.id, ahora, actor.usuarioId]);
-    // Un pedido especial nace sin el equipo presente (el repuesto llega antes que el equipo); lo demás, con el equipo en el taller.
-    if (tipo.es_pedido_especial !== 1) {
-      const ing = await ejecutar(con, 'INSERT INTO ingresos_equipo (orden_id, equipo_id, entrada_en, recibido_por_id) VALUES (?, ?, ?, ?)', [ordenId, d.equipo_id, ahora, actor.usuarioId]);
-      if (d.lectura) {
-        const c = await una<{ equipo_id: number }>(con, 'SELECT equipo_id FROM contadores WHERE id = ?', [d.lectura.contador_id]);
-        if (!c || c.equipo_id !== d.equipo_id) throw new ErrorValidacion('El contador elegido no es de este equipo');
-        const lecturaId = await registrarLecturaEn(ctx, t, con, actor, d.lectura.contador_id, { valor: d.lectura.valor, fecha: hoy, origen: 'orden', orden_id: ordenId });
-        await ejecutar(con, 'UPDATE ingresos_equipo SET lectura_contador_id = ? WHERE id = ?', [lecturaId, ing.insertId]);
-      }
-    } else if (d.lectura) throw new ErrorValidacion('Un pedido especial nace sin el equipo presente: no lleva lectura de contador');
-    await bitacora(con, actor, { accion: 'orden_creada', entidad: 'ordenes', entidadId: ordenId, despues: { numero, equipo_id: d.equipo_id, tipo_orden_id: tipo.id } });
-    return { id: ordenId, avisos: abierta ? [{ tipo: 'orden_abierta', numero: abierta.numero }] : [] };
-  });
+  );
+  const ordenId = r.insertId;
+  await ejecutar(con, 'INSERT INTO orden_estados_historial (orden_id, estado_id, desde, usuario_id) VALUES (?, ?, ?, ?)', [ordenId, estado.id, ahora, actor.usuarioId]);
+  // Un pedido especial nace sin el equipo presente (el repuesto llega antes que el equipo); lo demás, con el equipo en el taller.
+  if (tipo.es_pedido_especial !== 1) {
+    const ing = await ejecutar(con, 'INSERT INTO ingresos_equipo (orden_id, equipo_id, entrada_en, recibido_por_id) VALUES (?, ?, ?, ?)', [ordenId, d.equipo_id, ahora, actor.usuarioId]);
+    if (d.lectura) {
+      const c = await una<{ equipo_id: number }>(con, 'SELECT equipo_id FROM contadores WHERE id = ?', [d.lectura.contador_id]);
+      if (!c || c.equipo_id !== d.equipo_id) throw new ErrorValidacion('El contador elegido no es de este equipo');
+      const lecturaId = await registrarLecturaEn(ctx, t, con, actor, d.lectura.contador_id, { valor: d.lectura.valor, fecha: hoy, origen: 'orden', orden_id: ordenId });
+      await ejecutar(con, 'UPDATE ingresos_equipo SET lectura_contador_id = ? WHERE id = ?', [lecturaId, ing.insertId]);
+    }
+  } else if (d.lectura) throw new ErrorValidacion('Un pedido especial nace sin el equipo presente: no lleva lectura de contador');
+  await bitacora(con, actor, { accion: 'orden_creada', entidad: 'ordenes', entidadId: ordenId, despues: { numero, equipo_id: d.equipo_id, tipo_orden_id: tipo.id } });
+  return { id: ordenId, avisos: abierta ? [{ tipo: 'orden_abierta', numero: abierta.numero }] : [] };
+}
+
+export async function crearOrden(ctx: Contexto, t: TallerReq, actor: Actor, d: DatosOrdenNueva) {
+  const { id, avisos } = await transaccion(t.pool, (con) => crearOrdenEn(ctx, t, con, actor, d));
   return { ordenId: id, avisos };
 }
 
@@ -367,9 +372,10 @@ async function mover(ctx: Contexto, con: PoolConnection, actor: Actor, o: OrdenC
   }
 }
 
-export async function cambiarEstadoOrden(ctx: Contexto, t: TallerReq, actor: Actor, id: number, d: { estado_id: number; motivo?: string | null }, puedeReabrir: boolean) {
+export async function cambiarEstadoOrden(ctx: Contexto, t: TallerReq, actor: Actor, id: number, d: { estado_id: number; motivo?: string | null; excepcion_motivo_id?: number }, puedeReabrir: boolean, puedeExceptuar = false) {
   const motivo = normalizarCampo('texto', d.motivo);
   await transaccion(t.pool, async (con) => {
+    let excepcion: { motivo: string; faltaban: string[] } | null = null;
     const o = await ordenCruda(con, id, true);
     const nuevo = await una<{ id: number; es_terminal: number; es_cancelado: number; sale_equipo: number; activo: number; nombre: string }>(con, 'SELECT id, es_terminal, es_cancelado, sale_equipo, activo, nombre FROM estados_orden WHERE id = ?', [d.estado_id]);
     if (!nuevo || nuevo.activo !== 1) throw new ErrorValidacion('El estado elegido no existe o está desactivado');
@@ -384,7 +390,22 @@ export async function cambiarEstadoOrden(ctx: Contexto, t: TallerReq, actor: Act
       const p = await una<{ n: number }>(con, `SELECT COUNT(*) AS n FROM lineas_orden WHERE orden_id = ? AND ${ACTIVA} AND tipo IN ('servicio', 'tercero') AND estado <> 'terminado'`, [id]);
       if (Number(p?.n) > 0) throw new ErrorApp(409, 'LINEAS_PENDIENTES', `La orden tiene ${p?.n} ${Number(p?.n) === 1 ? 'trabajo' : 'trabajos'} sin terminar. Termínelos, o anúlelos con su motivo, antes de cerrar la orden.`, { pendientes: Number(p?.n) });
     }
+    if (nuevo.es_terminal === 1) {
+      // Los checklists requeridos para cerrar: bloquean, salvo una excepción autorizada con motivo (que queda registrada).
+      const pend = await checklistsPendientes(con, id, 'antes_de_terminar');
+      if (pend.bloquean.length > 0) {
+        if (d.excepcion_motivo_id) {
+          if (!puedeExceptuar) throw new ErrorApp(403, 'SIN_PERMISO', 'Su rol no puede autorizar una excepción de checklist.');
+          const m = await una<{ nombre: string }>(con, "SELECT nombre FROM motivos WHERE id = ? AND tipo = 'excepcion_checklist' AND activo = 1", [d.excepcion_motivo_id]);
+          if (!m) throw new ErrorValidacion('Elija un motivo de excepción de la lista');
+          excepcion = { motivo: m.nombre, faltaban: pend.bloquean };
+        } else {
+          throw new ErrorApp(409, 'CHECKLIST_REQUERIDO', `Faltan checklists por completar antes de cerrar la orden: ${pend.bloquean.join(', ')}.`, { faltan: pend.bloquean });
+        }
+      }
+    }
     await mover(ctx, con, actor, o, nuevo, motivo);
+    if (excepcion) await bitacora(con, actor, { accion: 'orden_cierre_con_excepcion', entidad: 'ordenes', entidadId: id, motivo: excepcion.motivo, despues: { faltaban: excepcion.faltaban } });
     await bitacora(con, actor, { accion: o.es_terminal === 1 ? 'orden_reabierta' : 'orden_estado', entidad: 'ordenes', entidadId: id, motivo, antes: { estado_id: o.estado_id }, despues: { estado_id: nuevo.id } });
   });
   return id;
@@ -635,6 +656,8 @@ export async function cambiarEstadoLinea(ctx: Contexto, t: TallerReq, actor: Act
     if (estado === 'en_proceso') {
       if (!l.tecnico_id) throw new ErrorApp(409, 'SIN_TECNICO', 'Asigne un técnico al trabajo antes de iniciarlo.');
       await validarTecnico(con, l.tecnico_id, l.trabajo_id);
+      const pend = await checklistsPendientes(con, l.orden_id, 'antes_de_iniciar');
+      if (pend.bloquean.length > 0) throw new ErrorApp(409, 'CHECKLIST_REQUERIDO', `Antes de iniciar el trabajo falta completar: ${pend.bloquean.join(', ')}.`, { faltan: pend.bloquean });
       const ocupado = await una<{ numero: string; descripcion: string }>(
         con,
         `SELECT o.numero, l2.descripcion FROM registros_tiempo r JOIN lineas_orden l2 ON l2.id = r.linea_id JOIN ordenes o ON o.id = l2.orden_id

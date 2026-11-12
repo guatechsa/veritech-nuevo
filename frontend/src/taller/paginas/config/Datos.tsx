@@ -104,7 +104,7 @@ function Resultado({ r }: { r: ResultadoCarga }) {
   return (
     <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-live="polite">
       {r.aplicado ? (
-        <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-800">Listo: se cargó {resumenDeCreados(r.creados)}. Ya los puede ver en el sistema.</p>
+        <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-800">Listo. Quedaron cargados: {resumenDeCreados(r.creados)}. Ya los puede ver en el sistema.</p>
       ) : hayErrores ? (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
           {r.con_error === 1 ? 'Hay 1 fila con un problema' : `Hay ${r.con_error} filas con problemas`} y por eso NO se cargó nada. Corrija el Excel y vuelva a subirlo completo.

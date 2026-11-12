@@ -48,6 +48,15 @@ const ESTADO: Record<Cita['estado'], { texto: string; variante: 'default' | 'suc
 const sumarDias = (iso: string, n: number): string => new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)) + n)).toISOString().slice(0, 10);
 
 // ── Agendar o reprogramar ─────────────────────────────────────────────────────────────
+/** 90 minutos → «1 h 30 min»; más de un día → «1 día 3 h». */
+function duracionCorta(minutos: number): string {
+  if (minutos < 60) return `${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return minutos % 60 ? `${horas} h ${minutos % 60} min` : `${horas} h`;
+  const dias = Math.floor(horas / 24);
+  return horas % 24 ? `${dias} ${dias === 1 ? 'día' : 'días'} ${horas % 24} h` : `${dias} ${dias === 1 ? 'día' : 'días'}`;
+}
+
 function FormularioCita({ cita, equipoInicial, servicioId, alCerrar, alListo }: { cita?: Cita; equipoInicial?: EquipoFila | null; servicioId?: number; alCerrar: () => void; alListo: () => void }) {
   const { api } = useSesionTaller();
   const opciones = useLista(() => api.get<OpcionesCita>('/citas-opciones'), [api]);
@@ -271,7 +280,7 @@ export default function Citas() {
                     {c.estado === 'cancelada' && <p className="text-gray-500">Motivo: {c.motivo_cancelacion}{c.motivo_cancelacion_texto ? ` — ${c.motivo_cancelacion_texto}` : ''}</p>}
                     {c.estado === 'se_presento' && c.minutos_de_diferencia !== null && (
                       <p className="text-gray-500">
-                        {c.minutos_de_diferencia > 5 ? `Llegó ${c.minutos_de_diferencia} min tarde` : c.minutos_de_diferencia < -5 ? `Llegó ${-c.minutos_de_diferencia} min antes` : 'Llegó puntual'}
+                        {c.minutos_de_diferencia > 5 ? `Llegó ${duracionCorta(c.minutos_de_diferencia)} tarde` : c.minutos_de_diferencia < -5 ? `Llegó ${duracionCorta(-c.minutos_de_diferencia)} antes` : 'Llegó puntual'}
                         {c.orden_numero ? ` · Orden ${c.orden_numero}` : ''}
                       </p>
                     )}

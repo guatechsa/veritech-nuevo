@@ -197,7 +197,7 @@ export function FichaMaterial({ id, opciones, alCerrar, alCambiar }: { id: numbe
               </div>
               {tiene('inventario.catalogo') && <Button size="sm" variant="outline" onClick={() => setVentana('editar')}>Editar material</Button>}
             </div>
-            <section className="space-y-2"><h3 className="text-sm font-bold text-gray-900">Existencia por bodega</h3><Tabla columnas={columnas} filas={m.por_bodega} clave={(b) => b.bodega_id} vacio="No hay bodegas activas: créelas en Configuración → Sucursales y áreas." /></section>
+            <section className="space-y-2"><h3 className="text-sm font-bold text-gray-900">Existencia por bodega</h3><Tabla columnas={columnas} filas={m.por_bodega} clave={(b) => b.bodega_id} vacio="No hay bodegas activas: créelas en Configuración → Áreas y bodegas." /></section>
             <section className="space-y-2"><h3 className="text-sm font-bold text-gray-900">Últimos movimientos</h3><Tabla columnas={movCols} filas={(movimientos.datos?.registros ?? []).slice(0, 15)} clave={(x) => x.id} vacio="Todavía no hay movimientos." /></section>
           </>
         )}

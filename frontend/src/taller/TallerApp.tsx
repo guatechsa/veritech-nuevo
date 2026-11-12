@@ -3,6 +3,7 @@ import { ProveedorUbicacion, UbicacionTaller } from './contexto';
 import LayoutTaller from './Layout';
 import { PaginaEntrarSoporte, PaginaIngresar, PaginaRecuperar, PaginaRestablecer } from './paginas/Acceso';
 import Citas from './paginas/Citas';
+import Cotizaciones from './paginas/Cotizaciones';
 import Clientes from './paginas/Clientes';
 import Configuracion from './paginas/Configuracion';
 import Equipos from './paginas/Equipos';
@@ -33,6 +34,7 @@ export default function TallerApp({ ubicacion }: { ubicacion: UbicacionTaller })
             <Route path="citas" element={<Citas />} />
             <Route path="mis-trabajos" element={<MisTrabajos />} />
             <Route path="ordenes" element={<Ordenes />} />
+            <Route path="cotizaciones" element={<Cotizaciones />} />
             <Route path="servicios" element={<Servicios />} />
             <Route path="inventario" element={<Inventario />} />
             <Route path="configuracion" element={<Configuracion />} />

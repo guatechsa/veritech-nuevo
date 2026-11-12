@@ -31,6 +31,7 @@ export const CLAVES: Record<string, Clave> = {
   precios_incluyen_iva: { tipo: 'bool', etiqueta: 'Los precios ya incluyen IVA', defecto: 'false', grupo: 'precios' },
   margen_general: { tipo: 'numero', etiqueta: 'Margen general de los materiales (%)', defecto: '30', min: 0, max: 1000, grupo: 'precios' },
   costo_base_inventario: { tipo: 'opcion', etiqueta: 'Costo con el que se sugiere el precio de un material', defecto: 'COSTO PROMEDIO', opciones: ['COSTO PROMEDIO', 'ULTIMO COSTO'], grupo: 'precios' },
+  vigencia_cotizacion_dias: { tipo: 'numero', etiqueta: 'Días de vigencia de una cotización', defecto: '15', min: 1, max: 365, grupo: 'precios' },
   modo_citas: { tipo: 'opcion', etiqueta: 'Cupo diario de citas', defecto: 'SOLO COORDINAR', opciones: ['SOLO COORDINAR', 'RESERVAR'], grupo: 'citas' },
 };
 

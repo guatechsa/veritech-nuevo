@@ -1,3 +1,4 @@
+import { desenlaceDeRespuestas, rojosAnteriores } from './cotizaciones-desenlace';
 import { Ejecutor, ejecutar, filas, transaccion, una } from '../db/consulta';
 import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
@@ -314,6 +315,9 @@ export async function obtenerChecklist(ctx: Contexto, t: TallerReq, id: number) 
   const opciones = itemIds.length === 0 ? [] : await filas<{ item_id: number; texto: string }>(t.pool, 'SELECT item_id, texto FROM checklist_item_opciones WHERE item_id IN (?) ORDER BY orden, id', [itemIds]);
   const firma = await una<{ firmante_nombre: string; archivo_id: number; firmado_en: Date }>(t.pool, 'SELECT firmante_nombre, archivo_id, firmado_en FROM firmas WHERE checklist_id = ?', [id]);
   const respondidas = respuestas.filter((r) => hayRespuesta(r as unknown as FilaRespuesta)).length;
+  const rojosIds = respuestas.filter((r) => r['semaforo'] === 'rojo').map((r) => Number(r['id']));
+  const desenlaces = await desenlaceDeRespuestas(t.pool, rojosIds);
+  const anteriores = c['estado'] === 'completado' ? [] : await rojosAnteriores(t.pool, Number(c['equipo_id']), Number(c['tipo_id']), id);
   return {
     ...c,
     exige_lectura_contador: c['exige_lectura_contador'] === 1,
@@ -324,7 +328,9 @@ export async function obtenerChecklist(ctx: Contexto, t: TallerReq, id: number) 
       ...r,
       opciones: opciones.filter((o) => o.item_id === r['item_id']).map((o) => o.texto),
       fotos: fotos.filter((f) => f.respuesta_id === r['id']).map((f) => ({ id: f.id, url: urlFirmada(ctx, t.empresa.slug, f.archivo_id) })),
+      ...(r['semaforo'] === 'rojo' ? { desenlace: desenlaces.get(Number(r['id'])) } : {}),
     })),
+    rojos_anteriores: anteriores,
     firma: firma ? { firmante_nombre: firma.firmante_nombre, firmado_en: firma.firmado_en, url: urlFirmada(ctx, t.empresa.slug, firma.archivo_id) } : null,
   };
 }

@@ -10,6 +10,7 @@ import { fechaHoraLocal } from '../../../utils/hora';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
 import { ErrorApi } from '../../../admin/api';
+import { CotizacionesOrden } from '../Cotizaciones';
 import { ReservasOrden } from '../inventario/Reservas';
 import { SolicitudesOrden } from '../inventario/Solicitudes';
 import { ChecklistsOrden } from './ChecklistsOrden';
@@ -444,6 +445,8 @@ export function FichaOrden({ id, alCerrar, alCambiar }: { id: number; alCerrar: 
             {tiene('solicitudes.ver') && <SolicitudesOrden ordenId={orden.id} ordenNumero={orden.numero} cerrada={orden.es_terminal === 1} alCambiar={() => { cargar(); alCambiar(); }} />}
 
             {tiene('reservas.ver') && <ReservasOrden ordenId={orden.id} ordenNumero={orden.numero} cerrada={orden.es_terminal === 1} alCambiar={() => { cargar(); alCambiar(); }} />}
+
+            {tiene('cotizaciones.ver') && <CotizacionesOrden ordenId={orden.id} ordenNumero={orden.numero} alCambiar={() => { cargar(); alCambiar(); }} />}
 
             {tiene('checklists.ver') && <ChecklistsOrden ordenId={orden.id} cerrada={orden.es_terminal === 1} alCambiar={() => { cargar(); alCambiar(); }} />}
 

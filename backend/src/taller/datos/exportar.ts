@@ -347,6 +347,25 @@ export function hojasDeExportacion(): HojaExportada[] {
             FROM material_aplica_a a JOIN materiales m ON m.id = a.material_id JOIN tipos_equipo te ON te.id = a.tipo_equipo_id LEFT JOIN marcas mr ON mr.id = a.marca_id ORDER BY m.codigo, te.nombre`,
     },
     {
+      nombre: 'Cotizaciones',
+      sql: `SELECT c.id AS "Número", c.numero AS "Cotización", c.version AS "Versión", UPPER(c.estado) AS "Estado", cl.nombre AS "Cliente", e.codigo_interno AS "Equipo", o.numero AS "Orden", c.subtotal AS "Subtotal", c.descuento_total AS "Descuento",
+              c.iva AS "IVA", c.total AS "Total", ${FECHA('c.vence_en')} AS "Vence", ${FECHA_HORA('c.enviada_en')} AS "Enviada (UTC)", c.notas AS "Notas", co.nombre_completo AS "Creó", ${FECHA_HORA('c.anulada_en')} AS "Anulada (UTC)", c.motivo_anulacion AS "Motivo de anulación"
+            FROM cotizaciones c LEFT JOIN clientes cl ON cl.id = c.cliente_id LEFT JOIN equipos e ON e.id = c.equipo_id LEFT JOIN ordenes o ON o.id = c.orden_id LEFT JOIN usuarios u ON u.id = c.creada_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY c.id`,
+    },
+    {
+      nombre: 'Lineas de cotizaciones',
+      sql: `SELECT l.id AS "Número", c.numero AS "Cotización", c.version AS "Versión", UPPER(l.tipo) AS "Tipo", l.descripcion AS "Descripción", l.cantidad AS "Cantidad", l.precio_unitario AS "Precio unitario", l.descuento_pct AS "Descuento %", l.total_linea AS "Total",
+              l.costo AS "Costo (interno)", UPPER(REPLACE(l.estado, '_', ' ')) AS "Estado", mo.nombre AS "Motivo de rechazo", l.motivo_rechazo_texto AS "Detalle del rechazo", ${FECHA_HORA('l.respondida_en')} AS "Respondida (UTC)", co.nombre_completo AS "Registró la respuesta",
+              l.dispositivo AS "Dispositivo", l.ip AS "IP", ao.numero AS "Llevada a la orden", ${FECHA_HORA('l.agregada_en')} AS "Llevada (UTC)"
+            FROM cotizacion_lineas l JOIN cotizaciones c ON c.id = l.cotizacion_id LEFT JOIN motivos mo ON mo.id = l.motivo_rechazo_id LEFT JOIN usuarios u ON u.id = l.respondida_por_usuario_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id
+              LEFT JOIN ordenes ao ON ao.id = l.agregada_orden_id ORDER BY c.id, l.id`,
+    },
+    {
+      nombre: 'Rojos en cotizaciones',
+      sql: `SELECT h.id AS "Número", c.numero AS "Cotización", c.version AS "Versión", r.seccion AS "Sección", r.descripcion AS "Ítem en rojo", r.nota AS "Nota"
+            FROM cotizacion_hallazgos h JOIN cotizaciones c ON c.id = h.cotizacion_id JOIN checklist_respuestas r ON r.id = h.respuesta_id ORDER BY c.id, h.id`,
+    },
+    {
       nombre: 'Roles',
       sql: `SELECT r.codigo AS "Código", r.nombre AS "Nombre", r.descripcion AS "Descripción", ${SI_NO('r.es_sistema')} AS "Viene con el sistema", ${SI_NO('r.activo')} AS "Activo",
               (SELECT GROUP_CONCAT(rp.permiso_codigo ORDER BY rp.permiso_codigo SEPARATOR ', ') FROM rol_permisos rp WHERE rp.rol_id = r.id) AS "Permisos"

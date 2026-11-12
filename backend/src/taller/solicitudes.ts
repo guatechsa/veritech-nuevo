@@ -23,7 +23,7 @@ export type EstadoSolicitud = (typeof ESTADOS_SOLICITUD)[number];
 const numeroDe = (prefijo: string, n: number): string => `${prefijo}-${String(n).padStart(6, '0')}`;
 
 /** Precio de venta de un material AHORA (precio fijo, o costo base más el margen que le toca). */
-async function precioDeMaterial(con: Ejecutor, cfg: ConfigPrecios, materialId: number): Promise<number> {
+export async function precioDeMaterial(con: Ejecutor, cfg: ConfigPrecios, materialId: number): Promise<number> {
   const m = await una<{ costo_ultimo: number; costo_promedio: number; precio_manual: number | null; parte_id: number; subsistema_id: number; sistema_id: number }>(
     con,
     `SELECT m.costo_ultimo, m.costo_promedio, m.precio_manual, m.parte_id, x.id AS subsistema_id, x.sistema_id

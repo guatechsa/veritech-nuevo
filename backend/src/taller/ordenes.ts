@@ -68,22 +68,21 @@ function exigirAbierta(o: OrdenCruda): void {
 /** Calcula y guarda subtotal, descuento, IVA y total de la orden con las líneas que siguen vigentes. */
 export async function recalcularTotales(con: Ejecutor, ordenId: number, cfg: { ivaPct: number; incluyeIva: boolean }): Promise<void> {
   const s = await una<{ bruto: number | null; neto: number | null }>(con, `SELECT SUM(precio_unitario * cantidad) AS bruto, SUM(total_linea) AS neto FROM lineas_orden WHERE orden_id = ? AND ${ACTIVA}`, [ordenId]);
-  const bruto = r2(Number(s?.bruto ?? 0));
-  const neto = r2(Number(s?.neto ?? 0));
-  const descuento = r2(bruto - neto);
-  let iva: number;
-  let total: number;
-  if (cfg.incluyeIva) {
-    iva = r2(neto - neto / (1 + cfg.ivaPct / 100));
-    total = neto;
-  } else {
-    iva = r2((neto * cfg.ivaPct) / 100);
-    total = r2(neto + iva);
-  }
-  await ejecutar(con, 'UPDATE ordenes SET subtotal = ?, descuento_total = ?, iva = ?, total = ? WHERE id = ?', [bruto, descuento, iva, total, ordenId]);
+  const t = calcularTotales(Number(s?.bruto ?? 0), Number(s?.neto ?? 0), cfg);
+  await ejecutar(con, 'UPDATE ordenes SET subtotal = ?, descuento_total = ?, iva = ?, total = ? WHERE id = ?', [t.subtotal, t.descuento, t.iva, t.total, ordenId]);
 }
 
-async function configDePrecios(t: TallerReq): Promise<{ ivaPct: number; incluyeIva: boolean }> {
+/** Subtotal, descuento, IVA y total a partir de la suma bruta y la neta (después de descuentos). Lo usan las órdenes y las cotizaciones. */
+export function calcularTotales(brutoSinRedondear: number, netoSinRedondear: number, cfg: { ivaPct: number; incluyeIva: boolean }): { subtotal: number; descuento: number; iva: number; total: number } {
+  const bruto = r2(brutoSinRedondear);
+  const neto = r2(netoSinRedondear);
+  const descuento = r2(bruto - neto);
+  if (cfg.incluyeIva) return { subtotal: bruto, descuento, iva: r2(neto - neto / (1 + cfg.ivaPct / 100)), total: neto };
+  const iva = r2((neto * cfg.ivaPct) / 100);
+  return { subtotal: bruto, descuento, iva, total: r2(neto + iva) };
+}
+
+export async function configDePrecios(t: TallerReq): Promise<{ ivaPct: number; incluyeIva: boolean }> {
   const c = await leerConfiguracion(t);
   return { ivaPct: Number(c['iva_porcentaje'] ?? 12), incluyeIva: c['precios_incluyen_iva'] === 'true' };
 }
@@ -455,13 +454,13 @@ export interface DatosLinea {
   notas?: string | null;
 }
 
-async function descuentoDelCliente(con: Ejecutor, clienteId: number | null, columna: 'descuento_trabajos' | 'descuento_otros' | 'descuento_materiales'): Promise<number> {
+export async function descuentoDelCliente(con: Ejecutor, clienteId: number | null, columna: 'descuento_trabajos' | 'descuento_otros' | 'descuento_materiales'): Promise<number> {
   if (!clienteId) return 0;
   const f = await una<{ d: number | null }>(con, `SELECT tc.${columna} AS d FROM clientes c JOIN tipos_cliente tc ON tc.id = c.tipo_cliente_id WHERE c.id = ?`, [clienteId]);
   return Number(f?.d ?? 0);
 }
 
-const totalDeLinea = (cantidad: number, precio: number, descuento: number): number => r2(cantidad * precio * (1 - descuento / 100));
+export const totalDeLinea = (cantidad: number, precio: number, descuento: number): number => r2(cantidad * precio * (1 - descuento / 100));
 
 async function validarTecnico(con: Ejecutor, tecnicoId: number | null | undefined, trabajoId?: number | null): Promise<void> {
   if (!tecnicoId) return;
@@ -483,10 +482,15 @@ async function validarTecnico(con: Ejecutor, tecnicoId: number | null | undefine
 
 /** Horas y tarifa que le tocan a un trabajo en el equipo de la orden. */
 async function preciosDeServicio(con: Ejecutor, o: OrdenCruda, trabajoId: number, areaId: number | null, horasManual?: number) {
+  return precioServicioDeEquipo(con, o.equipo_id, trabajoId, areaId, horasManual);
+}
+
+/** Horas, tarifa, precio y costo de un trabajo del catálogo para un equipo (las horas y la tarifa dependen del tipo de equipo y del área). */
+export async function precioServicioDeEquipo(con: Ejecutor, equipoId: number, trabajoId: number, areaId: number | null, horasManual?: number) {
   const eq = await una<{ tipo_equipo_id: number; tipo: string; tarifa: number; costo: number }>(
     con,
     'SELECT e.tipo_equipo_id, te.nombre AS tipo, te.tarifa_venta_hora AS tarifa, te.costo_hora AS costo FROM equipos e JOIN tipos_equipo te ON te.id = e.tipo_equipo_id WHERE e.id = ?',
-    [o.equipo_id]
+    [equipoId]
   );
   if (!eq) throw new ErrorNoEncontrado('No se encontró el equipo de la orden');
   const catalogo = await una<{ horas: number }>(con, 'SELECT horas FROM trabajo_horas_tipo_equipo WHERE trabajo_id = ? AND tipo_equipo_id = ?', [trabajoId, eq.tipo_equipo_id]);

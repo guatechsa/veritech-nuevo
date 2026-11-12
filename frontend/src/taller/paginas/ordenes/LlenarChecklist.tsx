@@ -7,6 +7,9 @@ import { ErrorApi } from '../../../admin/api';
 import { prepararArchivo } from '../../componentes/imagen';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
+import { useNavigate } from 'react-router-dom';
+import { useUbicacion } from '../../contexto';
+import { DESENLACE, Desenlace } from '../cotizaciones/tipos';
 import { FirmaPad } from './FirmaPad';
 
 export interface RespuestaChecklist {
@@ -24,6 +27,7 @@ export interface RespuestaChecklist {
   nota: string | null;
   opciones: string[];
   fotos: Array<{ id: number; url: string }>;
+  desenlace?: Desenlace;
 }
 
 export interface DetalleChecklist {
@@ -42,6 +46,7 @@ export interface DetalleChecklist {
   respondidas: number;
   respuestas: RespuestaChecklist[];
   firma: { firmante_nombre: string; firmado_en: string; url: string } | null;
+  rojos_anteriores?: Array<{ id: number; seccion: string; descripcion: string; desenlace: Desenlace }>;
 }
 
 const COLORES: Array<{ k: 'verde' | 'amarillo' | 'rojo'; t: string; clase: string }> = [
@@ -92,7 +97,7 @@ function Item({ c, r, bloqueado, alCambiar, alError }: { c: DetalleChecklist; r:
 
   return (
     <li className="space-y-2 rounded-md border border-gray-200 bg-white p-3">
-      <p className="text-sm font-medium text-gray-900">{r.descripcion}</p>
+      <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-900">{r.descripcion}{r.semaforo === 'rojo' && r.desenlace && <Badge variant={DESENLACE[r.desenlace.estado].variante}>{DESENLACE[r.desenlace.estado].texto}{r.desenlace.cotizacion ? ` · ${r.desenlace.cotizacion}` : ''}{r.desenlace.estado === 'rechazado' && r.desenlace.motivo ? ` (${r.desenlace.motivo})` : ''}</Badge>}</p>
       {r.tipo_respuesta === 'semaforo' && (
         <div className="flex flex-wrap gap-2">
           {COLORES.map((x) => (
@@ -157,6 +162,8 @@ export function LlenarChecklist({ id, alCerrar, alCambiar }: { id: number; alCer
   const [contadores, setContadores] = useState<Array<{ id: number; nombre: string; es_calendario: boolean; valor_actual: number; unidad: string }>>([]);
   const [contadorId, setContadorId] = useState('');
   const [lectura, setLectura] = useState('');
+  const navegar = useNavigate();
+  const { base } = useUbicacion();
 
   const cargar = (): void => {
     api.get<DetalleChecklist>(`/checklists/${id}`).then(setC).catch((e: unknown) => setError(mensajeDe(e, 'No se pudo cargar el checklist')));
@@ -196,6 +203,16 @@ export function LlenarChecklist({ id, alCerrar, alCambiar }: { id: number; alCer
     }
   };
 
+  const cotizarRojos = async (): Promise<void> => {
+    setError('');
+    try {
+      const cot = await api.post<{ id: number }>('/cotizaciones/desde-checklist', { checklist_id: id });
+      navegar(`${base}/cotizaciones?cotizacion=${cot.id}`);
+    } catch (e) {
+      setError(mensajeDe(e, 'No se pudo crear la cotización'));
+    }
+  };
+  const hayRojos = (c?.respuestas ?? []).some((r) => r.semaforo === 'rojo');
   const bloqueado = c?.estado === 'completado' || !tiene('checklists.llenar');
   const secciones = c ? [...new Set(c.respuestas.map((r) => r.seccion))] : [];
   const medidor = contadores.find((x) => String(x.id) === contadorId);
@@ -209,6 +226,19 @@ export function LlenarChecklist({ id, alCerrar, alCambiar }: { id: number; alCer
               <span>Plantilla versión {c.version} · {c.respondidas} de {c.total} ítems respondidos</span>
               {c.estado === 'completado' ? <Badge variant="success">Completado{c.completado_en ? ` el ${formatFechaHora(c.completado_en)}` : ''}{c.completado_por ? ` por ${c.completado_por}` : ''}</Badge> : <Badge variant="warning">{c.estado === 'pendiente' ? 'Sin empezar' : 'En progreso'}</Badge>}
             </div>
+            {(hayRojos && tiene('cotizaciones.crear')) && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+                <span>Este checklist tiene ítems en rojo. Se pueden cotizar: la cotización lleva los rojos con sus fotos y el cliente autoriza o rechaza cada línea.</span>
+                <Button size="sm" variant="outline" onClick={() => void cotizarRojos()}>Cotizar los rojos</Button>
+              </div>
+            )}
+            {(c.rojos_anteriores ?? []).length > 0 && (
+              <div className="space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <p className="font-medium">En la revisión anterior de este equipo quedaron sin resolver:</p>
+                <ul className="list-disc pl-5">{(c.rojos_anteriores ?? []).map((r) => <li key={r.id}>{r.seccion} › {r.descripcion} <Badge variant={DESENLACE[r.desenlace.estado].variante}>{DESENLACE[r.desenlace.estado].texto}</Badge></li>)}</ul>
+                <p className="text-xs">Revise si el defecto sigue.</p>
+              </div>
+            )}
             {secciones.map((s) => (
               <section key={s} className="space-y-2">
                 <h3 className="text-sm font-bold text-gray-900">{s}</h3>

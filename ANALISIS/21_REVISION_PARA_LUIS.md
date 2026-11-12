@@ -72,3 +72,6 @@ Cada sección dice **qué probar** y **qué decidí yo mientras usted dormía** 
 - La compra no se puede anular ni editar (como todo documento): un error se corrige con otra compra o con una diferencia con motivo. Fecha de la factura no puede ser futura.
 - Quién hace qué: bodeguero recibe, traslada y corrige cantidades; solo administrador/gerente cambian el catálogo y los márgenes; los costos se ven solo con el permiso «ver costos».
 - Todavía no hay (Fase 5b/5c): solicitudes de material y despacho a una orden, devoluciones, reservas, aplicabilidad de materiales a equipos y alertas de mínimo por correo.
+
+## Estado de verificación (2026-11-12)
+Probado en navegador real en el taller de práctica: 4c (agendar, reprogramar, recibir → orden), 4d (checklist con firma; bloquea sin foto/firma; queda cerrado), 4e (servicio programado, «urgente», agendar cita desde el servicio), 5a (material, compra, traslado). **Sin probar en pantalla:** cancelar cita y «no se presentó», subir fotos en checklist, «corregir cantidad» y márgenes (las pruebas automáticas sí los cubren). Para probar usted mismo la foto del checklist, hágalo desde un celular.

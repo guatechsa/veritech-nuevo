@@ -77,6 +77,7 @@ const CATALOGOS: Array<[string, string]> = [
   ['checklist_tipo_tipos_equipo', 'Checklist por tipo de equipo'],
   ['checklists_requeridos', 'Checklists requeridos'],
   ['avisos_servicio', 'Avisos de servicios'],
+  ['margenes', 'Margenes de materiales'],
 ];
 
 /** Las hojas del libro. Las primeras son las que el taller reconoce de inmediato; luego van los catálogos. */
@@ -271,6 +272,38 @@ export function hojasDeExportacion(): HojaExportada[] {
               o.numero AS "Orden", co.nombre_completo AS "Registró", ${FECHA_HORA('r.anulado_en')} AS "Anulado el (UTC)", r.motivo_anulacion AS "Motivo de la anulación"
             FROM servicios_realizados r JOIN equipos e ON e.id = r.equipo_id JOIN servicios_programados sp ON sp.id = r.servicio_id LEFT JOIN ordenes o ON o.id = r.orden_id
               LEFT JOIN usuarios u ON u.id = r.registrado_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY r.equipo_id, r.fecha, r.id`,
+    },
+    {
+      nombre: 'Materiales',
+      sql: `SELECT m.id AS "Número", m.codigo AS "Código", m.nombre AS "Nombre", CONCAT(s.codigo, '-', x.codigo, '-', p.codigo, ' ', p.nombre) AS "Clasificación", mr.nombre AS "Marca", m.codigo_oem AS "Código del fabricante",
+              u.nombre AS "Unidad", m.existencia_minima AS "Existencia mínima", m.ubicacion AS "Ubicación", COALESCE((SELECT SUM(e.cantidad) FROM existencias e WHERE e.material_id = m.id), 0) AS "Existencia total",
+              m.costo_ultimo AS "Último costo (interno)", m.costo_promedio AS "Costo promedio (interno)", m.precio_manual AS "Precio fijo", pv.nombre AS "Proveedor principal", ${SI_NO('m.activo')} AS "Activo"
+            FROM materiales m JOIN partes p ON p.id = m.parte_id JOIN subsistemas x ON x.id = p.subsistema_id JOIN sistemas s ON s.id = x.sistema_id JOIN unidades u ON u.id = m.unidad_id
+              LEFT JOIN marcas mr ON mr.id = m.marca_id LEFT JOIN proveedores pv ON pv.id = m.proveedor_principal_id ORDER BY m.codigo`,
+    },
+    {
+      nombre: 'Existencias',
+      sql: `SELECT m.codigo AS "Código", m.nombre AS "Material", b.nombre AS "Bodega", sc.nombre AS "Sucursal", e.cantidad AS "Cantidad"
+            FROM existencias e JOIN materiales m ON m.id = e.material_id JOIN bodegas b ON b.id = e.bodega_id JOIN sucursales sc ON sc.id = b.sucursal_id ORDER BY m.codigo, b.nombre`,
+    },
+    {
+      nombre: 'Movimientos de inventario',
+      sql: `SELECT mv.id AS "Número", ${FECHA_HORA('mv.fecha')} AS "Fecha (UTC)", m.codigo AS "Código", m.nombre AS "Material", b.nombre AS "Bodega", UPPER(REPLACE(mv.tipo, '_', ' ')) AS "Tipo", mv.cantidad AS "Cantidad",
+              mv.saldo_resultante AS "Saldo de la bodega", mv.costo_unitario AS "Costo unitario (interno)", mv.referencia_tipo AS "Documento", mv.referencia_id AS "Número del documento", mo.nombre AS "Motivo",
+              mv.notas AS "Notas", co.nombre_completo AS "Usuario"
+            FROM movimientos_inventario mv JOIN materiales m ON m.id = mv.material_id JOIN bodegas b ON b.id = mv.bodega_id LEFT JOIN motivos mo ON mo.id = mv.motivo_id
+              LEFT JOIN usuarios u ON u.id = mv.usuario_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY mv.id`,
+    },
+    {
+      nombre: 'Compras',
+      sql: `SELECT c.id AS "Número", c.numero AS "Compra", p.nombre AS "Proveedor", b.nombre AS "Bodega", ${FECHA('c.fecha_documento')} AS "Fecha del documento", c.numero_factura AS "Factura", c.total AS "Total",
+              c.notas AS "Notas", co.nombre_completo AS "Registró"
+            FROM compras c JOIN proveedores p ON p.id = c.proveedor_id JOIN bodegas b ON b.id = c.bodega_id LEFT JOIN usuarios u ON u.id = c.creada_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY c.id`,
+    },
+    {
+      nombre: 'Lineas de compras',
+      sql: `SELECT l.id AS "Número", c.numero AS "Compra", m.codigo AS "Código", m.nombre AS "Material", l.cantidad AS "Cantidad", l.costo_unitario AS "Costo unitario", (l.cantidad * l.costo_unitario) AS "Subtotal"
+            FROM compra_lineas l JOIN compras c ON c.id = l.compra_id JOIN materiales m ON m.id = l.material_id ORDER BY c.id, l.id`,
     },
     {
       nombre: 'Roles',

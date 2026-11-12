@@ -94,7 +94,7 @@ function FormularioCita({ cita, equipoInicial, servicioId, alCerrar, alListo }: 
             {cita ? <p className="text-sm text-gray-700">{cita.equipo} · {cita.cliente ?? 'Del taller'}</p> : <Campo etiqueta="Equipo"><BuscadorEquipo valor={equipo} alCambiar={setEquipo} /></Campo>}
             <div className="grid gap-3 sm:grid-cols-3">
               <Campo etiqueta="Día"><FechaInput value={fecha} onChange={(e) => setFecha(e.target.value)} min={hoyIso()} required className={CLASE_INPUT} /></Campo>
-              <Campo etiqueta="Hora"><input className={CLASE_INPUT} type="time" value={hora} onChange={(e) => setHora(e.target.value)} required /></Campo>
+              <Campo etiqueta="Hora"><input className={CLASE_INPUT} type="text" inputMode="numeric" placeholder="HH:mm (24 horas)" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" maxLength={5} title="Escriba la hora así: 08:30 o 14:00" value={hora} onChange={(e) => setHora(e.target.value)} required /></Campo>
               <Campo etiqueta="Horas estimadas" ayuda="Sirven para planificar la carga del taller."><input className={CLASE_INPUT} type="number" min={0.25} max={24} step="0.25" value={horas} onChange={(e) => setHoras(e.target.value)} required /></Campo>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

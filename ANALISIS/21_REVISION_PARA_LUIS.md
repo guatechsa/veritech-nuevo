@@ -62,3 +62,13 @@ Cada sección dice **qué probar** y **qué decidí yo mientras usted dormía** 
 - Solo contadores del equipo (no de componentes) por ahora; la cascada «un servicio incluye a otro» (servicio_incluye) NO se construyó: era opcional y avanzada.
 - «Revisar avisos» solo anota qué avisos corresponde mandar; el correo o el aviso al teléfono llegan con la Fase 7 (avisos incluidos). Todavía no corre solo cada noche.
 - La planificación de carga y la «lista del servicio» (kit) quedaron fuera a propósito (usted pidió olvidar el kit).
+
+## Fase 5a — Inventario (materiales, compras, traslados, diferencias, márgenes)
+**Qué probar:** menú «Inventario». (1) Pestaña Materiales → «Nuevo material»: código, nombre, clasificación (elija «99 Insumos generales» para aceite, trapos, etc.), unidad. (2) Pestaña Compras → «Registrar compra» con 2 materiales: vea que sube la existencia y el costo promedio. Repita con otro costo para ver el promedio ponderado. (3) Abra un material → «Trasladar» a otra bodega (cree una segunda bodega en Configuración → Áreas y bodegas) y «Corregir cantidad». (4) Pestaña Márgenes: defina 50 % para un sistema y 80 % para un material y vea el precio en la ficha. (5) Pestaña Movimientos: todo queda ahí.
+**Decidí yo:**
+- Las cantidades de inventario son SIEMPRE enteras (para medio metro use centímetros). La unidad de un material no se cambia cuando ya tiene movimientos.
+- El margen general por defecto es 30 % y el precio se calcula con el costo promedio (ambos se cambian en Configuración → General, grupo «precios»). Un precio fijo en el material manda sobre todo.
+- La clasificación es obligatoria porque de ella sale el margen. Los insumos generales cuelgan de un sistema «99» creado por la migración.
+- La compra no se puede anular ni editar (como todo documento): un error se corrige con otra compra o con una diferencia con motivo. Fecha de la factura no puede ser futura.
+- Quién hace qué: bodeguero recibe, traslada y corrige cantidades; solo administrador/gerente cambian el catálogo y los márgenes; los costos se ven solo con el permiso «ver costos».
+- Todavía no hay (Fase 5b/5c): solicitudes de material y despacho a una orden, devoluciones, reservas, aplicabilidad de materiales a equipos y alertas de mínimo por correo.

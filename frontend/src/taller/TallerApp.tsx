@@ -9,6 +9,7 @@ import Equipos from './paginas/Equipos';
 import Inicio from './paginas/Inicio';
 import MisTrabajos from './paginas/MisTrabajos';
 import Ordenes from './paginas/Ordenes';
+import Inventario from './paginas/Inventario';
 import Servicios from './paginas/Servicios';
 import { ProveedorSesionTaller } from './Sesion';
 
@@ -33,6 +34,7 @@ export default function TallerApp({ ubicacion }: { ubicacion: UbicacionTaller })
             <Route path="mis-trabajos" element={<MisTrabajos />} />
             <Route path="ordenes" element={<Ordenes />} />
             <Route path="servicios" element={<Servicios />} />
+            <Route path="inventario" element={<Inventario />} />
             <Route path="configuracion" element={<Configuracion />} />
           </Route>
           <Route path="*" element={<Navigate to={ubicacion.base || '/'} replace />} />

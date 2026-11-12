@@ -11,6 +11,7 @@ import { montarRutasClientes } from './rutas-clientes';
 import { montarRutasDatos } from './rutas-datos';
 import { montarRutasEquipos } from './rutas-equipos';
 import { montarRutasEstructura } from './rutas-estructura';
+import { montarRutasInventario } from './rutas-inventario';
 import { montarRutasOrdenes } from './rutas-ordenes';
 import { montarRutasServicios } from './rutas-servicios';
 import { exigirTurnstile } from '../utils/turnstile';
@@ -118,6 +119,7 @@ export function crearRutasTaller(ctx: Contexto): Router {
   montarRutasCitas(router, ctx);
   montarRutasChecklists(router, ctx);
   montarRutasServicios(router, ctx);
+  montarRutasInventario(router, ctx);
 
   return router;
 }

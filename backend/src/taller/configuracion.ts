@@ -29,6 +29,8 @@ export const CLAVES: Record<string, Clave> = {
   moneda: { tipo: 'opcion', etiqueta: 'Moneda', defecto: 'GTQ', opciones: ['GTQ', 'USD'], grupo: 'regional' },
   iva_porcentaje: { tipo: 'numero', etiqueta: 'IVA (%)', defecto: '12', min: 0, max: 30, grupo: 'precios' },
   precios_incluyen_iva: { tipo: 'bool', etiqueta: 'Los precios ya incluyen IVA', defecto: 'false', grupo: 'precios' },
+  margen_general: { tipo: 'numero', etiqueta: 'Margen general de los materiales (%)', defecto: '30', min: 0, max: 1000, grupo: 'precios' },
+  costo_base_inventario: { tipo: 'opcion', etiqueta: 'Costo con el que se sugiere el precio de un material', defecto: 'COSTO PROMEDIO', opciones: ['COSTO PROMEDIO', 'ULTIMO COSTO'], grupo: 'precios' },
   modo_citas: { tipo: 'opcion', etiqueta: 'Cupo diario de citas', defecto: 'SOLO COORDINAR', opciones: ['SOLO COORDINAR', 'RESERVAR'], grupo: 'citas' },
 };
 

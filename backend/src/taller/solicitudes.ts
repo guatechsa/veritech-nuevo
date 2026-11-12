@@ -4,8 +4,11 @@ import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { normalizarCampo } from '../utils/texto';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
+import { registrarUsoEnEquipo } from './aplicabilidad';
+import { hoyDelTaller } from './contadores';
 import { aplicarMovimiento, ConfigPrecios, configDeInventario, margenDe, precioDe, Vista } from './inventario';
 import { bloquearOrdenAbierta, cargarMaterialEnOrden } from './ordenes';
+import { cubrirReservasDeLaOrden, existenciaEnSucursal, reservadoPorOtras } from './reservas-nucleo';
 
 /**
  * Solicitudes de material (Fase 5b). La bodega tiene la obligación de proveer lo que el taller pide, así que no existe «rechazada»:
@@ -35,6 +38,11 @@ async function precioDeMaterial(con: Ejecutor, cfg: ConfigPrecios, materialId: n
 
 // ── Pedir ─────────────────────────────────────────────────────────────────────────────
 export async function crearSolicitud(ctx: Contexto, t: TallerReq, actor: Actor, d: { orden_id: number; notas?: string | null; lineas: Array<{ material_id: number; cantidad: number }> }) {
+  return transaccion(t.pool, (con) => crearSolicitudEn(ctx, con, actor, d));
+}
+
+/** Pide los materiales dentro de una transacción que ya está abierta (lo usa también «Cargar a la orden» de una reserva). */
+export async function crearSolicitudEn(ctx: Contexto, con: PoolConnection, actor: Actor, d: { orden_id: number; notas?: string | null; lineas: Array<{ material_id: number; cantidad: number }> }) {
   if (d.lineas.length === 0 || d.lineas.length > 50) throw new ErrorValidacion('La solicitud necesita entre 1 y 50 materiales');
   const vistos = new Set<number>();
   for (const l of d.lineas) {
@@ -42,7 +50,7 @@ export async function crearSolicitud(ctx: Contexto, t: TallerReq, actor: Actor, 
     if (vistos.has(l.material_id)) throw new ErrorValidacion('Un material aparece dos veces en la solicitud: sume las cantidades en una sola línea');
     vistos.add(l.material_id);
   }
-  return transaccion(t.pool, async (con) => {
+  {
     const o = await bloquearOrdenAbierta(con, d.orden_id);
     const numero = numeroDe('SOL', await siguienteNumero(con, 'SOL'));
     const r = await ejecutar(con, 'INSERT INTO solicitudes_material (numero, orden_id, solicitante_id, notas, solicitada_en) VALUES (?, ?, ?, ?, ?)', [numero, d.orden_id, actor.usuarioId, normalizarCampo('texto', d.notas)?.slice(0, 300) ?? null, ahoraDe(ctx)]);
@@ -53,7 +61,7 @@ export async function crearSolicitud(ctx: Contexto, t: TallerReq, actor: Actor, 
     }
     await bitacora(con, actor, { accion: 'solicitud_material_creada', entidad: 'solicitudes_material', entidadId: r.insertId, despues: { numero, orden: o.numero, lineas: d.lineas.length } });
     return { id: r.insertId, numero };
-  });
+  }
 }
 
 // ── Consultar ─────────────────────────────────────────────────────────────────────────
@@ -177,8 +185,14 @@ async function bodegaDeLaSucursal(con: Ejecutor, bodegaId: number, sucursalId: n
 export async function despachar(ctx: Contexto, t: TallerReq, actor: Actor, id: number, items: Array<{ linea_id: number; bodega_id: number; cantidad: number }>) {
   if (items.length === 0 || items.length > 100) throw new ErrorValidacion('Indique qué se despacha');
   for (const i of items) if (!Number.isInteger(i.cantidad) || i.cantidad <= 0) throw new ErrorValidacion('Las cantidades deben ser números enteros mayores que cero');
+  return transaccion(t.pool, (con) => despacharEn(ctx, t, con, actor, id, items));
+}
+
+/** Despacha dentro de una transacción que ya está abierta (lo usa también «Cargar a la orden» de una reserva). */
+export async function despacharEn(ctx: Contexto, t: TallerReq, con: PoolConnection, actor: Actor, id: number, items: Array<{ linea_id: number; bodega_id: number; cantidad: number }>) {
   const cfg = await configDeInventario(t);
-  return transaccion(t.pool, async (con) => {
+  const hoy = hoyDelTaller(ctx, t);
+  {
     const s = await una<{ id: number; numero: string; orden_id: number; estado: EstadoSolicitud }>(con, 'SELECT id, numero, orden_id, estado FROM solicitudes_material WHERE id = ? FOR UPDATE', [id]);
     if (!s) throw new ErrorNoEncontrado('No se encontró la solicitud');
     if (s.estado === 'anulada') throw new ErrorApp(409, 'REGLA', `La solicitud ${s.numero} está anulada: ya no se despacha.`);
@@ -205,18 +219,26 @@ export async function despachar(ctx: Contexto, t: TallerReq, actor: Actor, id: n
       const pendiente = Number(l.cantidad_solicitada) - Number(l.cantidad_despachada);
       if (i.cantidad > pendiente) throw new ErrorApp(409, 'EXCEDE_SOLICITADO', `De ${l.codigo} ${l.nombre} solo faltan ${pendiente} por despachar: no se puede despachar más de lo pedido.`, { pendiente });
       const costo = Number(l.costo_promedio);
+      // Las unidades reservadas para OTRAS órdenes de la sucursal están protegidas: no se pueden despachar a esta.
+      const enSucursal = await existenciaEnSucursal(con, l.material_id, orden.sucursal_id);
+      const reservado = await reservadoPorOtras(con, l.material_id, orden.sucursal_id, s.orden_id, hoy);
+      if (reservado > 0 && i.cantidad <= enSucursal && i.cantidad > enSucursal - reservado) {
+        throw new ErrorApp(409, 'RESERVADO', `De ${l.codigo} ${l.nombre} hay ${enSucursal} pero ${reservado} están reservados para otras órdenes: solo se pueden despachar ${Math.max(0, enSucursal - reservado)}.`, { disponible: Math.max(0, enSucursal - reservado), reservado });
+      }
       const mov = await aplicarMovimiento(ctx, con, actor, { material_id: l.material_id, bodega_id: i.bodega_id, tipo: 'despacho', cantidad: -i.cantidad, costo_unitario: costo, referencia_tipo: 'solicitud', referencia_id: id });
       await ejecutar(con, 'INSERT INTO despachos_material (solicitud_linea_id, bodega_id, cantidad, costo_unitario, movimiento_id, despachado_por_id, fecha) VALUES (?, ?, ?, ?, ?, ?, ?)', [l.id, i.bodega_id, i.cantidad, costo, mov.id, actor.usuarioId, ahora]);
       await ejecutar(con, 'UPDATE solicitud_lineas SET cantidad_despachada = cantidad_despachada + ? WHERE id = ?', [i.cantidad, l.id]);
       const precio = await precioDeMaterial(con, cfg, l.material_id);
       await cargarMaterialEnOrden(t, con, actor, { orden_id: s.orden_id, solicitud_linea_id: l.id, material_id: l.material_id, descripcion: `${l.codigo} ${l.nombre}`, cantidad: i.cantidad, costo: r2(i.cantidad * costo), precio_unitario: precio });
+      await cubrirReservasDeLaOrden(con, s.orden_id, l.material_id, i.cantidad, ahora);
+      await registrarUsoEnEquipo(con, l.material_id, orden.equipo_id, ahora);
     }
     const f = await una<{ pendientes: number; despachadas: number }>(con, 'SELECT COALESCE(SUM(cantidad_solicitada - cantidad_despachada), 0) AS pendientes, COALESCE(SUM(cantidad_despachada), 0) AS despachadas FROM solicitud_lineas WHERE solicitud_id = ?', [id]);
     const completa = Number(f?.pendientes ?? 0) === 0;
     await ejecutar(con, 'UPDATE solicitudes_material SET estado = ?, primer_despacho_en = COALESCE(primer_despacho_en, ?), despachada_en = ? WHERE id = ?', [completa ? 'despachada' : 'despachada_parcial', ahora, completa ? ahora : null, id]);
     await bitacora(con, actor, { accion: 'solicitud_material_despachada', entidad: 'solicitudes_material', entidadId: id, despues: { numero: s.numero, orden: orden.numero, completa, items: items.length } });
     return { id, estado: completa ? 'despachada' : 'despachada_parcial' };
-  });
+  }
 }
 
 // ── Devolver ──────────────────────────────────────────────────────────────────────────

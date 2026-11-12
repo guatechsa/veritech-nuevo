@@ -7,7 +7,7 @@ import Tabla, { Columna } from '../../../admin/componentes/Tabla';
 import { fechaHoraLocal } from '../../../utils/hora';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, Seccion, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
-import { DetalleSolicitud, ESTADO_SOLICITUD, FilaMaterial, FilaSolicitud, LineaSolicitud } from './tipos';
+import { DetalleSolicitud, ESTADO_SOLICITUD, FilaMaterial, FilaSolicitud, LineaSolicitud, MaterialSugerido } from './tipos';
 
 const ESTADOS_ABIERTOS = ['no_despachada', 'despachada_parcial'];
 
@@ -31,6 +31,7 @@ export function PedirMateriales({ ordenId, ordenNumero, alCerrar, alListo }: { o
   const [lineas, setLineas] = useState<Pedido[]>([]);
   const [notas, setNotas] = useState('');
   const [error, setError] = useState('');
+  const sugeridos = useLista(() => api.get<MaterialSugerido[]>(`/ordenes/${ordenId}/materiales-sugeridos`), [api, ordenId]);
   useEffect(() => {
     if (texto.trim().length < 2) return setResultados([]);
     const espera = setTimeout(() => api.get<{ registros: FilaMaterial[] }>(`/materiales?buscar=${encodeURIComponent(texto.trim())}`).then((r) => setResultados(r.registros.slice(0, 8))).catch(() => setResultados([])), 250);
@@ -56,6 +57,14 @@ export function PedirMateriales({ ordenId, ordenNumero, alCerrar, alListo }: { o
       <form onSubmit={enviar} className="space-y-3">
         <Aviso mensaje={error} tipo="error" />
         <p className="text-sm text-gray-700">Bodega recibe el pedido y lo despacha; lo despachado se carga solo a la orden.</p>
+        {(sugeridos.datos ?? []).length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-gray-600">Para este tipo de equipo se suelen pedir:</p>
+            <div className="flex flex-wrap gap-2">
+              {(sugeridos.datos ?? []).map((s) => <button key={s.id} type="button" disabled={lineas.some((l) => l.material_id === s.id)} className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs hover:bg-gray-100 disabled:opacity-50" onClick={() => setLineas((ls) => [...ls, { material_id: s.id, codigo: s.codigo, nombre: s.nombre, unidad: s.unidad, existencia: s.existencia_total, cantidad: '1' }])}>{s.nombre} <span className="text-gray-500">· hay {s.existencia_total}</span></button>)}
+            </div>
+          </div>
+        )}
         <Campo etiqueta="Buscar material">
           <div className="relative">
             <input className={CLASE_INPUT} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Código, nombre, marca o código del fabricante" data-no-uppercase="true" autoComplete="off" autoFocus />

@@ -427,6 +427,7 @@ export async function anularOrden(ctx: Contexto, t: TallerReq, actor: Actor, id:
     if (Number(conMaterial?.n ?? 0) > 0) {
       throw new ErrorApp(409, 'MATERIAL_DESPACHADO', `La orden ${o.numero} tiene materiales despachados. Devuélvalos a la bodega antes de anularla, para que el inventario quede en su lugar.`);
     }
+    await ejecutar(con, "UPDATE reservas SET estado = 'cancelada', cancelada_en = ?, cancelada_por_id = ?, motivo_cancelacion = 'ORDEN ANULADA' WHERE orden_id = ? AND estado = 'activa'", [ahora, actor.usuarioId, id]);
     await ejecutar(con, "UPDATE solicitudes_material SET estado = 'anulada', anulada_en = ?, anulada_por_id = ?, motivo_anulacion = 'ORDEN ANULADA' WHERE orden_id = ? AND estado IN ('no_despachada', 'despachada_parcial')", [ahora, actor.usuarioId, id]);
     // Los trabajos sin terminar se anulan con la orden; los ya terminados se conservan.
     await ejecutar(con, `UPDATE registros_tiempo r JOIN lineas_orden l ON l.id = r.linea_id SET r.fin = ? WHERE l.orden_id = ? AND r.fin IS NULL`, [ahora, id]);
@@ -652,10 +653,10 @@ export async function anularLinea(ctx: Contexto, t: TallerReq, actor: Actor, id:
 
 // ── Material despachado: lo usa Inventario ────────────────────────────────────────────
 /** Bloquea la orden y exige que siga abierta (despachar o devolver material en una orden cerrada o anulada no se permite). */
-export async function bloquearOrdenAbierta(con: Ejecutor, ordenId: number): Promise<{ id: number; numero: string; sucursal_id: number; cliente_id: number | null }> {
+export async function bloquearOrdenAbierta(con: Ejecutor, ordenId: number): Promise<{ id: number; numero: string; sucursal_id: number; cliente_id: number | null; equipo_id: number }> {
   const o = await ordenCruda(con, ordenId, true);
   exigirAbierta(o);
-  return { id: o.id, numero: o.numero, sucursal_id: o.sucursal_id, cliente_id: o.cliente_id };
+  return { id: o.id, numero: o.numero, sucursal_id: o.sucursal_id, cliente_id: o.cliente_id, equipo_id: o.equipo_id };
 }
 
 /**

@@ -90,3 +90,17 @@ Probado en navegador real en el taller de práctica: 4c (agendar, reprogramar, r
 - Todavía no hay (5c): reservas, «cargar a la orden» desde una reserva, aplicabilidad de materiales a equipos, alertas de mínimo, el aviso por correo al bodeguero cuando llega una solicitud (Fase 7) ni el tablero del tiempo de despacho (Fase 7; los datos ya se guardan).
 
 **Verificación de 5b (2026-11-12):** probado en navegador real en el taller de práctica: pedir 3 filtros desde la orden, despachar 2 (queda DESPACHADA PARCIAL) y luego 1 (DESPACHADA), devolver 1 con motivo; la orden quedó con 2 unidades a Q 65 = Q 130, costo Q 100 y su IVA. No probé en pantalla: anular una solicitud, despachar desde una segunda bodega ni el bloqueo al anular una orden con material (las pruebas automáticas sí los cubren).
+
+## Fase 5c — Reservas, aplicabilidad a equipos y alertas
+**Qué probar:** (1) En una orden → «Reservar material»: elija un material SIN existencia, cantidad 2, vence en 7 días. Abra la reserva: «Cargar a la orden» da error «no hay suficiente inventario». (2) En Inventario → Compras registre 2 unidades: la reserva muestra «Ya hay material completo» y arriba del Inventario sale el aviso. (3) «Cargar a la orden»: despacha y aparece en la orden. (4) Con otra orden, intente pedir y despachar ese mismo material mientras haya una reserva viva: no deja despachar las reservadas. (5) Abra un material → «A qué equipos les sirve»: ahí quedó anotado el tipo de equipo; pruebe «Agregar» una marca/modelo. (6) Al pedir material en otra orden de ese tipo de equipo, salen «sugeridos».
+**Decidí yo:**
+- La protección es por **sucursal**: lo reservado por una orden de una sucursal no lo pueden despachar otras órdenes de esa misma sucursal. Una orden **cerrada o anulada ya no protege nada** (anular la orden cancela sus reservas).
+- Una reserva **vence al final del día** que usted pone (hora del taller) y se marca sola «vencida»; máximo 365 días. Una reserva vencida no se amplía ni se carga: se hace otra.
+- Lo que se despacha **a la propia orden** (con una solicitud normal) cubre su reserva (la más vieja primero); al cubrirse todo, la reserva pasa sola a «cargada».
+- «Cargar a la orden» saca el material de las bodegas de la sucursal de la orden (primero la que más tiene), todo o nada; pide el permiso de despachar.
+- **Ampliar** lo hace quien tenga el permiso «gestionar reservas» (bodeguero, gerente, administrador), con motivo y una fecha posterior; **cancelar** lo hace quien reservó o quien gestione, con motivo; una reserva ya cargada no se cancela (se devuelve el material).
+- Reservan: administrador, gerente, supervisor y recepcionista. Todos los demás roles la ven.
+- Aplicabilidad: se anota tipo + marca + modelo del equipo cada vez que se despacha ese material (la marca y el modelo quedan vacíos si el equipo no los tiene, y entonces vale para todo ese tipo de equipo). A mano solo por tipo/marca/modelo (nunca equipo por equipo); un modelo exige la marca.
+- Las **alertas** por ahora solo aparecen en pantalla (materiales bajo el mínimo, solicitudes sin despachar, reservas por vencer en 7 días o menos, reservas ya completas). El correo/aviso al teléfono llega con la Fase 7.
+- El mínimo es **global por material** (suma de todas las bodegas), como hoy; un mínimo por bodega queda fuera.
+- Todavía no hay: las reservas **no** se ven en la ficha del equipo; el aviso al cliente de que su pieza llegó lo manda recepción a mano (botón de correo/WhatsApp llega con la Fase 7).

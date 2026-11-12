@@ -331,6 +331,22 @@ export function hojasDeExportacion(): HojaExportada[] {
               JOIN bodegas b ON b.id = d.bodega_id LEFT JOIN usuarios u ON u.id = d.registrada_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY d.id`,
     },
     {
+      nombre: 'Reservas de material',
+      sql: `SELECT r.id AS "Número", r.numero AS "Reserva", o.numero AS "Orden", UPPER(r.estado) AS "Estado", ${FECHA('r.vence_en')} AS "Vence", r.extensiones AS "Veces ampliada", r.motivo_extension AS "Motivo de la ampliación",
+              r.notas AS "Notas", co.nombre_completo AS "Reservó", sm.numero AS "Solicitud de despacho", ${FECHA_HORA('r.cargada_en')} AS "Cargada (UTC)", ${FECHA_HORA('r.cancelada_en')} AS "Cancelada (UTC)", r.motivo_cancelacion AS "Motivo de cancelación"
+            FROM reservas r JOIN ordenes o ON o.id = r.orden_id LEFT JOIN usuarios u ON u.id = r.creada_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id LEFT JOIN solicitudes_material sm ON sm.id = r.solicitud_id ORDER BY r.id`,
+    },
+    {
+      nombre: 'Lineas de reservas',
+      sql: `SELECT l.id AS "Número", r.numero AS "Reserva", m.codigo AS "Código", m.nombre AS "Material", l.cantidad AS "Cantidad reservada", l.cantidad_cubierta AS "Cantidad ya despachada"
+            FROM reserva_lineas l JOIN reservas r ON r.id = l.reserva_id JOIN materiales m ON m.id = l.material_id ORDER BY r.id, l.id`,
+    },
+    {
+      nombre: 'Materiales aplican a',
+      sql: `SELECT a.id AS "Número", m.codigo AS "Código", m.nombre AS "Material", te.nombre AS "Tipo de equipo", mr.nombre AS "Marca", a.modelo AS "Modelo", UPPER(a.origen) AS "Origen", a.veces AS "Veces despachado", ${FECHA_HORA('a.ultima_vez')} AS "Última vez (UTC)"
+            FROM material_aplica_a a JOIN materiales m ON m.id = a.material_id JOIN tipos_equipo te ON te.id = a.tipo_equipo_id LEFT JOIN marcas mr ON mr.id = a.marca_id ORDER BY m.codigo, te.nombre`,
+    },
+    {
       nombre: 'Roles',
       sql: `SELECT r.codigo AS "Código", r.nombre AS "Nombre", r.descripcion AS "Descripción", ${SI_NO('r.es_sistema')} AS "Viene con el sistema", ${SI_NO('r.activo')} AS "Activo",
               (SELECT GROUP_CONCAT(rp.permiso_codigo ORDER BY rp.permiso_codigo SEPARATOR ', ') FROM rol_permisos rp WHERE rp.rol_id = r.id) AS "Permisos"

@@ -8,7 +8,7 @@ import { fechaHoraLocal } from '../../../utils/hora';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
 import { dineroDe } from '../ordenes/tipos';
-import { DetalleMaterial, Movimiento, OpcionesInventario } from './tipos';
+import { Aplicabilidad, DetalleMaterial, Movimiento, OpcionesInventario } from './tipos';
 
 // ── Crear o editar un material ────────────────────────────────────────────────────────
 export function FormMaterial({ material, opciones, alCerrar, alListo }: { material?: DetalleMaterial; opciones: OpcionesInventario; alCerrar: () => void; alListo: (id: number) => void }) {
@@ -142,6 +142,69 @@ function Diferencia({ material, opciones, bodega, alCerrar, alListo }: { materia
   );
 }
 
+// ── A qué equipos les sirve ───────────────────────────────────────────────────────────
+function AplicaA({ materialId }: { materialId: number }) {
+  const { api, tiene } = useSesionTaller();
+  const lista = useLista(() => api.get<Aplicabilidad[]>(`/materiales/${materialId}/aplica-a`), [api, materialId]);
+  const tipos = useLista(() => api.get<Array<{ id: number; nombre: string }>>('/tipos-equipo'), [api]);
+  const marcas = useLista(() => api.get<Array<{ id: number; nombre: string }>>('/catalogos/marcas'), [api]);
+  const [agregando, setAgregando] = useState(false);
+  const [tipo, setTipo] = useState('');
+  const [marca, setMarca] = useState('');
+  const [modelo, setModelo] = useState('');
+  const [error, setError] = useState('');
+  const puede = tiene('inventario.catalogo');
+  const guardar = async (e: FormEvent): Promise<void> => {
+    e.preventDefault();
+    setError('');
+    try {
+      await api.post(`/materiales/${materialId}/aplica-a`, { tipo_equipo_id: Number(tipo), marca_id: marca ? Number(marca) : null, modelo: modelo.trim() || null });
+      setAgregando(false);
+      setTipo('');
+      setMarca('');
+      setModelo('');
+      lista.recargar();
+    } catch (err) {
+      setError(mensajeDe(err, 'No se pudo guardar'));
+    }
+  };
+  const quitar = async (id: number): Promise<void> => {
+    setError('');
+    try {
+      await api.delete(`/materiales-aplica-a/${id}`);
+      lista.recargar();
+    } catch (err) {
+      setError(mensajeDe(err, 'No se pudo quitar'));
+    }
+  };
+  const columnas: Array<Columna<Aplicabilidad>> = [
+    { clave: 'tipo', etiqueta: 'Tipo de equipo', valor: (a) => a.tipo_equipo },
+    { clave: 'marca', etiqueta: 'Marca', valor: (a) => a.marca ?? '', render: (a) => a.marca ?? 'Cualquiera' },
+    { clave: 'modelo', etiqueta: 'Modelo', valor: (a) => a.modelo ?? '', render: (a) => a.modelo ?? 'Cualquiera' },
+    { clave: 'origen', etiqueta: 'Cómo se supo', valor: (a) => a.origen, render: (a) => (a.origen === 'consumo' ? <span>Se despachó {a.veces} {a.veces === 1 ? 'vez' : 'veces'}</span> : <Badge variant="info">Anotado a mano</Badge>) },
+    ...(puede ? [{ clave: 'acc', etiqueta: 'Acciones', render: (a: Aplicabilidad) => <Acciones><BotonAccion onClick={() => void quitar(a.id)}>Quitar</BotonAccion></Acciones> }] : []),
+  ];
+  return (
+    <section className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-gray-900">A qué equipos les sirve</h3>
+        {puede && !agregando && <Button size="sm" variant="outline" onClick={() => setAgregando(true)}>Agregar</Button>}
+      </div>
+      <p className="text-xs text-gray-500">Se aprende solo cada vez que se despacha el material a una orden; aquí también puede anotarlo a mano. Al pedir material para un equipo, se sugieren primero los que le sirven.</p>
+      <Aviso mensaje={error || lista.error} tipo="error" />
+      {agregando && (
+        <form onSubmit={guardar} className="grid gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 sm:grid-cols-4">
+          <Campo etiqueta="Tipo de equipo"><select className={CLASE_INPUT} value={tipo} onChange={(e) => setTipo(e.target.value)} required><option value="">Elija…</option>{(tipos.datos ?? []).map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select></Campo>
+          <Campo etiqueta="Marca (opcional)"><select className={CLASE_INPUT} value={marca} onChange={(e) => { setMarca(e.target.value); if (!e.target.value) setModelo(''); }}><option value="">Cualquiera</option>{(marcas.datos ?? []).map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></Campo>
+          <Campo etiqueta="Modelo (opcional)"><input className={CLASE_INPUT} value={modelo} onChange={(e) => setModelo(e.target.value)} maxLength={60} disabled={!marca} /></Campo>
+          <div className="flex items-end gap-2"><Button type="submit">Guardar</Button><Button variant="outline" onClick={() => setAgregando(false)}>Cancelar</Button></div>
+        </form>
+      )}
+      <Tabla columnas={columnas} filas={lista.datos ?? []} clave={(a) => a.id} vacio={lista.datos ? 'Todavía no se sabe: se llenará solo con los despachos.' : 'Cargando…'} />
+    </section>
+  );
+}
+
 // ── La ficha ──────────────────────────────────────────────────────────────────────────
 export function FichaMaterial({ id, opciones, alCerrar, alCambiar }: { id: number; opciones: OpcionesInventario; alCerrar: () => void; alCambiar: () => void }) {
   const { api, tiene, perfil } = useSesionTaller();
@@ -192,12 +255,14 @@ export function FichaMaterial({ id, opciones, alCerrar, alCambiar }: { id: numbe
                 </p>
                 <p className="text-gray-700">Precio de venta: <strong>{dineroDe(moneda, m.precio)}</strong>{m.precio_manual != null ? ' (fijo)' : ''}</p>
                 {m.costo_promedio !== undefined && <p className="text-gray-600">Costo promedio {dineroDe(moneda, m.costo_promedio)} · último costo {dineroDe(moneda, m.costo_ultimo)} · margen {m.margen}% ({m.margen_origen})</p>}
+                {(m.reservado ?? 0) > 0 && <p className="text-gray-700">Reservado para órdenes: <strong>{m.reservado}</strong> · libre: <strong>{Math.max(0, m.existencia_total - (m.reservado ?? 0))} {m.unidad}</strong></p>}
                 {m.ubicacion && <p className="text-gray-600">Ubicación: {m.ubicacion}</p>}
                 {m.descripcion && <p className="text-gray-800">{m.descripcion}</p>}
               </div>
               {tiene('inventario.catalogo') && <Button size="sm" variant="outline" onClick={() => setVentana('editar')}>Editar material</Button>}
             </div>
             <section className="space-y-2"><h3 className="text-sm font-bold text-gray-900">Existencia por bodega</h3><Tabla columnas={columnas} filas={m.por_bodega} clave={(b) => b.bodega_id} vacio="No hay bodegas activas: créelas en Configuración → Áreas y bodegas." /></section>
+            <AplicaA materialId={m.id} />
             <section className="space-y-2"><h3 className="text-sm font-bold text-gray-900">Últimos movimientos</h3><Tabla columnas={movCols} filas={(movimientos.datos?.registros ?? []).slice(0, 15)} clave={(x) => x.id} vacio="Todavía no hay movimientos." /></section>
           </>
         )}

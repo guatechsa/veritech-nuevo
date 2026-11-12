@@ -19,6 +19,8 @@ import {
   trasladar,
   Vista,
 } from './inventario';
+import { hoyDelTaller } from './contadores';
+import { reservadoTotal } from './reservas-nucleo';
 import { exigirPermiso } from './sesion';
 
 const texto = (max: number) => z.string().trim().max(max);
@@ -69,7 +71,8 @@ export function montarRutasInventario(router: Router, ctx: Contexto): void {
     res.json({ success: true, data: await listarMateriales(taller(req), vistaDe(req), { ...f, bajo_minimo: f.bajo_minimo === 'true', inactivos: f.inactivos === 'true', porPagina: 50 }) });
   });
   router.get('/materiales/:id', ver, async (req, res) => {
-    res.json({ success: true, data: await obtenerMaterial(taller(req), idDe(req), vistaDe(req)) });
+    const m = await obtenerMaterial(taller(req), idDe(req), vistaDe(req));
+    res.json({ success: true, data: { ...m, reservado: await reservadoTotal(taller(req).pool, idDe(req), hoyDelTaller(ctx, taller(req))) } });
   });
   router.post('/materiales', catalogo, async (req, res) => {
     const d = validar(z.object({ ...camposMaterial, codigo: texto(30).min(1), nombre: texto(200).min(2), parte_id: idPositivo, unidad_id: idPositivo }), req.body);

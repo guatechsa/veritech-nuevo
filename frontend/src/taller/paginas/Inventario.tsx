@@ -12,8 +12,9 @@ import { Aviso, Campo, CLASE_INPUT, mensajeDe, Seccion, useLista } from '../comp
 import { useSesionTaller } from '../Sesion';
 import { dineroDe } from './ordenes/tipos';
 import { FichaMaterial, FormMaterial } from './inventario/FichaMaterial';
+import { PestanaReservas } from './inventario/Reservas';
 import { Bandeja } from './inventario/Solicitudes';
-import { FilaCompra, FilaMaterial, Movimiento, OpcionesInventario } from './inventario/tipos';
+import { AlertasInventario, FilaCompra, FilaMaterial, Movimiento, OpcionesInventario } from './inventario/tipos';
 
 const hoyIso = (): string => {
   const d = new Date();
@@ -38,7 +39,7 @@ function Materiales({ opciones }: { opciones: OpcionesInventario }) {
   const [params, setParams] = useSearchParams();
   const [buscar, setBuscar] = useState('');
   const [sistema, setSistema] = useState('');
-  const [bajo, setBajo] = useState(false);
+  const [bajo, setBajo] = useState(params.get('bajo') === '1');
   const [inactivos, setInactivos] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [nuevo, setNuevo] = useState(false);
@@ -348,6 +349,25 @@ function Margenes({ opciones }: { opciones: OpcionesInventario }) {
   );
 }
 
+// ── Lo que hay que atender ────────────────────────────────────────────────────────────
+function Alertas({ irA }: { irA: (tab: string, extra?: Record<string, string>) => void }) {
+  const { api } = useSesionTaller();
+  const a = useLista(() => api.get<AlertasInventario>('/inventario/alertas'), [api]);
+  const d = a.datos;
+  if (!d) return null;
+  const chips: Array<{ k: string; texto: string; tab: string; extra?: Record<string, string>; fuerte: boolean }> = [];
+  if ((d.solicitudes_pendientes ?? 0) > 0) chips.push({ k: 'sol', texto: `${d.solicitudes_pendientes} ${d.solicitudes_pendientes === 1 ? 'solicitud' : 'solicitudes'} sin despachar`, tab: 'solicitudes', fuerte: true });
+  if (d.bajo_minimo.length > 0) chips.push({ k: 'min', texto: `${d.bajo_minimo.length} ${d.bajo_minimo.length === 1 ? 'material bajo' : 'materiales bajo'} el mínimo`, tab: 'materiales', extra: { bajo: '1' }, fuerte: true });
+  if ((d.reservas_listas?.length ?? 0) > 0) chips.push({ k: 'lis', texto: `${d.reservas_listas?.length} ${d.reservas_listas?.length === 1 ? 'reserva ya tiene' : 'reservas ya tienen'} su material completo`, tab: 'reservas', fuerte: false });
+  if ((d.reservas_por_vencer?.length ?? 0) > 0) chips.push({ k: 'ven', texto: `${d.reservas_por_vencer?.length} ${d.reservas_por_vencer?.length === 1 ? 'reserva vence' : 'reservas vencen'} en 7 días o menos`, tab: 'reservas', fuerte: false });
+  if (chips.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2" role="status" aria-label="Lo que hay que atender">
+      {chips.map((c) => <button key={c.k} onClick={() => irA(c.tab, c.extra)} className={`rounded-full border px-3 py-1 text-xs font-medium ${c.fuerte ? 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100' : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'}`}>{c.texto}</button>)}
+    </div>
+  );
+}
+
 // ── La pantalla ───────────────────────────────────────────────────────────────────────
 export default function Inventario() {
   const { api, tiene } = useSesionTaller();
@@ -356,6 +376,7 @@ export default function Inventario() {
   const pestanas = [
     { k: 'materiales', t: 'Materiales', permiso: 'inventario.ver' },
     { k: 'solicitudes', t: 'Solicitudes', permiso: 'solicitudes.ver' },
+    { k: 'reservas', t: 'Reservas', permiso: 'reservas.ver' },
     { k: 'compras', t: 'Compras', permiso: 'inventario.ver' },
     { k: 'movimientos', t: 'Movimientos', permiso: 'inventario.ver' },
     { k: 'margenes', t: 'Márgenes', permiso: 'inventario.ver_costos' },
@@ -368,11 +389,13 @@ export default function Inventario() {
       <div className="flex flex-wrap gap-2">
         {pestanas.map((p) => <button key={p.k} onClick={() => setParams({ tab: p.k }, { replace: true })} className={`rounded-md border border-gray-200 px-4 py-2 text-sm font-medium ${actual?.k === p.k ? 'bg-primary text-white' : 'bg-white text-gray-700 hover:bg-gray-100'}`}>{p.t}</button>)}
       </div>
+      <Alertas irA={(tab, extra) => setParams({ tab, ...(extra ?? {}) })} />
       <Aviso mensaje={opciones.error} tipo="error" />
       {!o ? <p className="text-sm text-gray-500">Cargando…</p> : (
         <>
           {actual?.k === 'materiales' && <Materiales opciones={o} />}
           {actual?.k === 'solicitudes' && <Bandeja />}
+          {actual?.k === 'reservas' && <PestanaReservas />}
           {actual?.k === 'compras' && <Compras opciones={o} />}
           {actual?.k === 'movimientos' && <Movimientos opciones={o} />}
           {actual?.k === 'margenes' && <Margenes opciones={o} />}

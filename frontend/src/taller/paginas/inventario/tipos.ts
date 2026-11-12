@@ -40,6 +40,7 @@ export interface FilaMaterial {
 
 export interface DetalleMaterial extends FilaMaterial {
   por_bodega: Array<{ bodega_id: number; bodega: string; sucursal: string; cantidad: number }>;
+  reservado?: number;
 }
 
 export interface Movimiento {
@@ -127,4 +128,80 @@ export interface DetalleSolicitud {
   lineas: LineaSolicitud[];
   despachos: Array<{ id: number; solicitud_linea_id: number; bodega: string; cantidad: number; costo_unitario?: number; fecha: string; despachado_por: string | null }>;
   devoluciones: Array<{ id: number; numero: string; solicitud_linea_id: number; bodega: string; cantidad: number; motivo: string; fecha: string; registrada_por: string | null }>;
+}
+
+export type EstadoReserva = 'activa' | 'cargada' | 'vencida' | 'cancelada';
+
+export const ESTADO_RESERVA: Record<EstadoReserva, { texto: string; variante: 'default' | 'success' | 'warning' | 'danger' | 'info' }> = {
+  activa: { texto: 'Activa', variante: 'info' },
+  cargada: { texto: 'Cargada a la orden', variante: 'success' },
+  vencida: { texto: 'Vencida', variante: 'danger' },
+  cancelada: { texto: 'Cancelada', variante: 'default' },
+};
+
+export interface FilaReserva {
+  id: number;
+  numero: string;
+  orden_id: number;
+  orden: string;
+  cliente: string | null;
+  equipo: string;
+  estado: EstadoReserva;
+  vence_en: string;
+  extensiones: number;
+  creada_por: string | null;
+  lineas: number;
+  lista: boolean;
+  dias_para_vencer: number | null;
+}
+
+export interface DetalleReserva {
+  id: number;
+  numero: string;
+  orden_id: number;
+  orden: string;
+  orden_cerrada: boolean;
+  cliente: string | null;
+  equipo: string;
+  estado: EstadoReserva;
+  vence_en: string;
+  extensiones: number;
+  motivo_extension: string | null;
+  notas: string | null;
+  creada_por: string | null;
+  solicitud_id: number | null;
+  solicitud: string | null;
+  motivo_cancelacion: string | null;
+  lista: boolean;
+  dias_para_vencer: number | null;
+  lineas: Array<{ id: number; material_id: number; codigo: string; nombre: string; unidad: string; cantidad: number; cantidad_cubierta: number; pendiente: number; disponible: number; alcanza: boolean }>;
+}
+
+export interface AlertasInventario {
+  bajo_minimo: Array<{ id: number; codigo: string; nombre: string; existencia_minima: number; existencia_total: number }>;
+  reservas_por_vencer?: Array<{ id: number; numero: string; orden: string; vence_en: string; dias_para_vencer: number }>;
+  reservas_listas?: Array<{ id: number; numero: string; orden: string; cliente: string | null }>;
+  solicitudes_pendientes?: number;
+  solicitud_mas_vieja?: string | null;
+}
+
+export interface Aplicabilidad {
+  id: number;
+  tipo_equipo_id: number;
+  tipo_equipo: string;
+  marca_id: number | null;
+  marca: string | null;
+  modelo: string | null;
+  origen: 'consumo' | 'manual';
+  veces: number;
+}
+
+export interface MaterialSugerido {
+  id: number;
+  codigo: string;
+  nombre: string;
+  unidad: string;
+  veces: number;
+  manual: boolean;
+  existencia_total: number;
 }

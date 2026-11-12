@@ -276,7 +276,7 @@ export async function alertasDeInventario(ctx: Contexto, t: TallerReq, incluirRe
     t.pool,
     `SELECT m.id, m.codigo, m.nombre, m.existencia_minima, COALESCE(SUM(e.cantidad), 0) AS existencia_total
        FROM materiales m LEFT JOIN existencias e ON e.material_id = m.id WHERE m.activo = 1 AND m.existencia_minima > 0
-      GROUP BY m.id, m.codigo, m.nombre, m.existencia_minima HAVING existencia_total < m.existencia_minima ORDER BY (existencia_total / m.existencia_minima), m.nombre LIMIT 50`
+      GROUP BY m.id, m.codigo, m.nombre, m.existencia_minima HAVING COALESCE(SUM(e.cantidad), 0) < m.existencia_minima ORDER BY (COALESCE(SUM(e.cantidad), 0) / m.existencia_minima), m.nombre LIMIT 50`
   );
   const salida: Record<string, unknown> = { bajo_minimo: bajo.map((m) => ({ ...m, existencia_minima: Number(m['existencia_minima']), existencia_total: Number(m['existencia_total']) })) };
   if (incluirReservas) {

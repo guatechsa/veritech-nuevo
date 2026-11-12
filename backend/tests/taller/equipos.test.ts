@@ -343,7 +343,7 @@ describe('equipos: fotos, documentos, notas y operadores', () => {
     // Sin firma, con firma cambiada, o con otro número: no existe.
     const [ruta, consulta] = foto.url.split('?') as [string, string];
     expect((await request(e.app).get(ruta)).status).toBe(404);
-    expect((await request(e.app).get(`${ruta}?${consulta.replace(/f=./, 'f=0')}`)).status).toBe(404);
+    expect((await request(e.app).get(`${ruta}?${consulta.replace(/f=(.)/, (_t, c: string) => `f=${c === '0' ? '1' : '0'}`)}`)).status).toBe(404);
     expect((await request(e.app).get(ruta.replace(/\/\d+$/, '/999') + '?' + consulta)).status).toBe(404);
     // La dirección de un taller no sirve con el nombre de otro.
     const otro = await tallerDePrueba(e);

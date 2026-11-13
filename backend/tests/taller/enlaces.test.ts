@@ -141,8 +141,10 @@ describe('lo que ve el cliente', () => {
     const reg = await m.t.sql(async (con) => (await con.query('SELECT aperturas, primera_apertura_en, ultima_apertura_en, primera_apertura_ip FROM enlaces_publicos'))[0] as Array<{ aperturas: number; primera_apertura_en: Date; ultima_apertura_en: Date; primera_apertura_ip: string | null }>);
     expect(reg[0]!.aperturas).toBe(2);
     expect(reg[0]!.primera_apertura_ip).toBeTruthy();
-    expect(Math.round(reg[0]!.primera_apertura_en.getTime() / 1000)).toBe(Math.round(hora1.getTime() / 1000)); // la primera no se pisa
-    expect(Math.round(reg[0]!.ultima_apertura_en.getTime() / 1000)).toBe(Math.round(hora1.getTime() / 1000) + 7200);
+    const seg = (d: Date): number => Math.round(d.getTime() / 1000);
+    expect(Math.abs(seg(reg[0]!.primera_apertura_en) - seg(hora1))).toBeLessThanOrEqual(1); // la primera no se pisa (la base puede redondear el segundo)
+    expect(Math.abs(seg(reg[0]!.ultima_apertura_en) - (seg(hora1) + 7200))).toBeLessThanOrEqual(1);
+    expect(seg(reg[0]!.ultima_apertura_en) - seg(reg[0]!.primera_apertura_en)).toBeGreaterThanOrEqual(7199);
   });
 
   it('una cotización reemplazada o anulada ya no se muestra y avisa por qué', async () => {

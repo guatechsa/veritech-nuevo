@@ -129,3 +129,13 @@ Probado en navegador real en el taller de práctica: 4c (agendar, reprogramar, r
 - Responde por línea y puede hacerlo **en varias visitas**; una línea respondida no se cambia. La cotización pasa a «respondida» cuando todas las líneas tienen respuesta; el taller sigue agregando lo autorizado a la orden con su botón (no es automático).
 - **Primera apertura real**: no cuentan las vistas previas automáticas de WhatsApp, correo o buscadores (se reconocen por el tipo de navegador). El aviso al responsable cuando abren por primera vez llega con la Fase 7 (correo/teléfono): hoy queda registrado y se ve en la cotización.
 - Solo hay enlaces de **cotización**; el enlace del checklist, de la cuenta y de la cita llegan con la Fase 7 (portal del cliente).
+
+## Fase 6c — Documentos emitidos en PDF (cuenta, informe, cotización)
+**Qué probar:** (1) Abra una orden con trabajos → «Cuenta en PDF» → «Emitir cuenta (PDF)»: se abre el PDF con el folio CTA-000001. Agregue otro trabajo y emita de nuevo: es la versión 2 y la anterior queda disponible. (2) Abra un checklist completado → «Informe en PDF». (3) En una cotización enviada → «Descargar PDF»; cuando el cliente responda, vuelva a descargar: sale una versión nueva con las respuestas.
+**Decidí yo:**
+- **No son facturas**: cada PDF lo dice abajo. Nunca llevan costos ni técnicos.
+- Emitir es **idempotente**: si nada cambió desde la última emisión, no se crea otra versión (sale el mismo PDF). Si cambió algo, nace la versión siguiente con el mismo folio y apunta a la que reemplaza; las anteriores siguen consultables con su contenido original.
+- El folio de la cotización es su número (COT-000001; si es una versión nueva de la cotización, COT-000001-V2). Dentro de una misma versión de la cotización, lo que cambia son las respuestas de las líneas y eso genera versiones del documento.
+- Para **emitir una cuenta** hace falta poder ver precios de las órdenes; quien solo ve documentos puede verlos y descargarlos pero no emitir.
+- El PDF usa las fotos en JPG/PNG (hasta 6 por ítem, pequeñas) y la firma del cliente en el informe.
+- Todavía no hay: el **enlace público** del informe y de la cuenta para el cliente (Fase 7, portal), ni el envío por correo; el PDF de la cuenta no distingue «incluye costos» (nunca los lleva); el **logo** de la empresa en el encabezado (hoy sale el nombre, NIT, dirección, teléfono y correo de Configuración → General).

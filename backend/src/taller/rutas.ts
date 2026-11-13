@@ -12,6 +12,7 @@ import { montarRutasDatos } from './rutas-datos';
 import { montarRutasEquipos } from './rutas-equipos';
 import { montarRutasEstructura } from './rutas-estructura';
 import { montarRutasCotizaciones } from './rutas-cotizaciones';
+import { montarRutasDocumentos } from './rutas-documentos';
 import { montarRutasInventario } from './rutas-inventario';
 import { montarRutasOrdenes } from './rutas-ordenes';
 import { montarRutasReservas } from './rutas-reservas';
@@ -143,6 +144,7 @@ export function crearRutasTaller(ctx: Contexto): Router {
   montarRutasSolicitudes(router, ctx);
   montarRutasReservas(router, ctx);
   montarRutasCotizaciones(router, ctx);
+  montarRutasDocumentos(router, ctx);
 
   return router;
 }

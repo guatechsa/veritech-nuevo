@@ -8,6 +8,7 @@ import { Acciones, BotonAccion } from '../../../components/ui-guatech/AccionBoto
 import Tabla, { Columna } from '../../../admin/componentes/Tabla';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
+import { BotonPdf } from '../ordenes/DocumentosOrden';
 import { dineroDe } from '../ordenes/tipos';
 import { DESENLACE, DetalleCotizacion, ESTADO_COT, ESTADO_LINEA_COT, LineaCotizacion, OpcionesCotizacion } from './tipos';
 
@@ -290,6 +291,7 @@ export function FichaCotizacion({ id, alCerrar, alCambiar, alAbrir }: { id: numb
             </section>
 
             <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
+              {c.estado !== 'borrador' && tiene('documentos.emitir') && <BotonPdf ruta={`/cotizaciones/${c.id}/documento`} texto="Descargar PDF" />}
               {puedeCotizar && ['borrador', 'enviada', 'vencida', 'respondida'].includes(c.estado) && <Button variant="outline" onClick={() => { setMotivo(''); setVentana('anular'); }}>Anular</Button>}
               {puedeCotizar && (c.estado === 'enviada' || c.estado === 'vencida') && <Button variant="outline" onClick={() => void accion(async () => { const r = await api.post<{ id: number }>(`/cotizaciones/${id}/nueva-version`, {}); if (alAbrir) alAbrir(r.id); }, 'No se pudo crear la versión nueva')}>Cambiarla (versión nueva)</Button>}
               {puedeCotizar && tiene('ordenes.editar') && llevables > 0 && <Button variant="outline" onClick={() => { setOrdenId(''); setVentana('orden'); }}>Agregar lo autorizado a la orden ({llevables})</Button>}

@@ -118,3 +118,14 @@ Probado en navegador real en el taller de práctica: 4c (agendar, reprogramar, r
 - Un trabajo del catálogo solo se cotiza si la cotización tiene equipo (las horas y la tarifa dependen del tipo de equipo); sin equipo se pueden cotizar materiales y trabajos con terceros.
 - Los **costos** (lo que cuesta al taller) solo los ven quienes pueden ver costos en las órdenes.
 - Todavía no hay: el enlace público para que el cliente autorice solo, con registro de apertura (6b); los PDF y los documentos emitidos —cuenta, informe, cotización— (6c); el aviso por correo al enviar; la cotización de **revisiones operativas sueltas** (no existen todavía en el taller nuevo).
+
+## Fase 6b — Enlace para que el cliente responda la cotización
+**Qué probar:** abra una cotización enviada → «Crear enlace» → copie el enlace y ábralo en el teléfono (o en una ventana privada, sin iniciar sesión): verá la cotización, las fotos, y podrá autorizar o no autorizar cada línea y enviar con su nombre. Vuelva a la cotización: aparece «respondió… (por enlace)», cuántas veces abrieron el enlace y cuándo la primera vez. Pruebe «Crear otro enlace» (el anterior deja de servir) y «Revocar enlaces».
+**Decidí yo:**
+- **El enlace no se puede volver a ver**: en el sistema solo se guarda una huella (como una contraseña), así que se muestra una vez al crearlo; si se pierde, se crea otro (que anula el anterior).
+- Vale **30 días** (Configuración → General → «Días de vigencia de un enlace para el cliente»). Aunque el enlace siga vivo, si la **cotización venció** se ve pero ya no se responde.
+- Un enlace malo, vencido o revocado responde **siempre el mismo mensaje** (no se puede adivinar cuáles existen). Hay un tope de intentos por dirección de red.
+- El cliente se identifica **escribiendo su nombre** (no hay códigos ni correo todavía): queda con fecha, hora, dispositivo y dirección de red. Si quiere un nivel más de seguridad (código por correo o teléfono), es una mejora de la Fase 7.
+- Responde por línea y puede hacerlo **en varias visitas**; una línea respondida no se cambia. La cotización pasa a «respondida» cuando todas las líneas tienen respuesta; el taller sigue agregando lo autorizado a la orden con su botón (no es automático).
+- **Primera apertura real**: no cuentan las vistas previas automáticas de WhatsApp, correo o buscadores (se reconocen por el tipo de navegador). El aviso al responsable cuando abren por primera vez llega con la Fase 7 (correo/teléfono): hoy queda registrado y se ve en la cotización.
+- Solo hay enlaces de **cotización**; el enlace del checklist, de la cuenta y de la cita llegan con la Fase 7 (portal del cliente).

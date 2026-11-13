@@ -73,6 +73,7 @@ export interface LineaCotizacion {
   motivo_rechazo_texto: string | null;
   respondida_en: string | null;
   respondida_por: string | null;
+  respondida_por_nombre: string | null;
   agregada_en: string | null;
   agregada_orden: string | null;
   solicitud: string | null;

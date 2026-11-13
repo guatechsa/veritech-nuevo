@@ -22,6 +22,7 @@ import { canjearAccesoSoporte, cambiarContrasena, cerrarSesion, ingresar, perfil
 import { resolverTaller } from './resolutor';
 import { autenticarTaller, bloquearCambiosSiSoloExportar, exigirPermiso } from './sesion';
 import { cancelarDesdeTaller, resumenSuscripcion } from './suscripcion';
+import { responderPorEnlace, verCotizacionPublica } from './enlaces';
 
 function limitador(limite: number, minutos: number) {
   return rateLimit({
@@ -77,6 +78,22 @@ export function crearRutasTaller(ctx: Contexto): Router {
   router.post('/auth/soporte', limitador(tope, 15), async (req, res) => {
     const datos = validar(z.object({ token: z.string().length(64) }), req.body);
     res.json({ success: true, data: await canjearAccesoSoporte(ctx, req.taller!, datos.token, origenDe(req)) });
+  });
+
+  // ── Enlaces para el cliente (sin sesión: el enlace secreto es la llave) ─────────────
+  const topePublico = ctx.limites?.publico ?? 60;
+  router.get('/publico/cotizacion/:token', limitador(topePublico, 15), async (req, res) => {
+    res.json({ success: true, data: await verCotizacionPublica(ctx, req.taller!, String(req.params['token']), { ip: ipDe(req), agente: req.get('user-agent') ?? '' }) });
+  });
+  router.post('/publico/cotizacion/:token/responder', limitador(topePublico, 15), async (req, res) => {
+    const d = validar(
+      z.object({
+        nombre: z.string().trim().min(3).max(100),
+        respuestas: z.array(z.object({ linea_id: z.number().int().positive(), decision: z.enum(['autorizada', 'rechazada']), motivo_id: z.number().int().positive().nullable().optional(), motivo_texto: z.string().trim().max(300).nullable().optional() })).min(1).max(100),
+      }),
+      req.body
+    );
+    res.json({ success: true, data: await responderPorEnlace(ctx, req.taller!, String(req.params['token']), { ip: ipDe(req), agente: req.get('user-agent') ?? '' }, d) });
   });
 
   // ── Todo lo demás exige sesión ────────────────────────────────────────────────────

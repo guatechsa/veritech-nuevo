@@ -68,7 +68,7 @@ export async function crearEntornoDePrueba(opciones: { limites?: Contexto['limit
   const ctx: Contexto = {
     pool,
     entorno,
-    limites: opciones.limites ?? { ingreso: 10000, recuperacion: 10000, registro: 10000, descargas: 10000 },
+    limites: opciones.limites ?? { ingreso: 10000, recuperacion: 10000, registro: 10000, descargas: 10000, publico: 10000 },
     pagos: paypal,
     ahora: () => (reloj.fijo ? new Date(reloj.fijo) : new Date()),
     cacheEmpresaMs: 0,

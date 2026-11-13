@@ -17,7 +17,7 @@ export interface Contexto {
   pool: Pool;
   entorno: Entorno;
   /** Topes de intentos por ventana (las pruebas los suben para no chocar con el límite). */
-  limites?: { ingreso?: number; recuperacion?: number; registro?: number; descargas?: number };
+  limites?: { ingreso?: number; recuperacion?: number; registro?: number; descargas?: number; publico?: number };
   /** PayPal. Sin él, el cobro está apagado. Las pruebas inyectan uno simulado. */
   pagos?: ProveedorPagos;
   /** ¿Responde ya el subdominio de un taller nuevo? (se inyecta para poder probar sin red). */

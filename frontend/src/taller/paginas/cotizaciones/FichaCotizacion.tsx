@@ -105,6 +105,74 @@ function AgregarLinea({ cot, alCerrar, alListo }: { cot: DetalleCotizacion; alCe
   );
 }
 
+// ── El enlace para el cliente ─────────────────────────────────────────────────────────
+interface EnlaceFila { id: number; creado: string | null; created_at: string; vence_en: string; revocado_en: string | null; primera_apertura_en: string | null; aperturas: number; vigente: boolean }
+
+function EnlaceCliente({ id, puedeCrear, alCambiar }: { id: number; puedeCrear: boolean; alCambiar: () => void }) {
+  const { api } = useSesionTaller();
+  const lista = useLista(() => api.get<EnlaceFila[]>(`/cotizaciones/${id}/enlaces`), [api, id]);
+  const [nuevo, setNuevo] = useState<{ url: string; vence_en: string } | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  const [error, setError] = useState('');
+  const crear = async (): Promise<void> => {
+    setError('');
+    setCopiado(false);
+    try {
+      setNuevo(await api.post<{ url: string; vence_en: string }>(`/cotizaciones/${id}/enlace`, {}));
+      lista.recargar();
+    } catch (e) {
+      setError(mensajeDe(e, 'No se pudo crear el enlace'));
+    }
+  };
+  const revocar = async (): Promise<void> => {
+    setError('');
+    try {
+      await api.post(`/cotizaciones/${id}/enlace/revocar`, {});
+      setNuevo(null);
+      lista.recargar();
+      alCambiar();
+    } catch (e) {
+      setError(mensajeDe(e, 'No se pudo revocar'));
+    }
+  };
+  const copiar = async (): Promise<void> => {
+    if (!nuevo) return;
+    try {
+      await navigator.clipboard.writeText(nuevo.url);
+      setCopiado(true);
+    } catch {
+      setCopiado(false);
+    }
+  };
+  const vigente = (lista.datos ?? []).find((e) => e.vigente);
+  return (
+    <section className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-gray-900">Enlace para el cliente</h3>
+        {puedeCrear && <span className="flex gap-2"><Button size="sm" onClick={() => void crear()}>{vigente ? 'Crear otro enlace' : 'Crear enlace'}</Button>{vigente && <Button size="sm" variant="outline" onClick={() => void revocar()}>Revocar enlaces</Button>}</span>}
+      </div>
+      <p className="text-xs text-gray-600">El cliente lo abre sin usuario ni contraseña y autoriza o rechaza cada línea. Un enlace nuevo anula los anteriores.</p>
+      <Aviso mensaje={error || lista.error} tipo="error" />
+      {nuevo && (
+        <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+          <p className="font-medium text-amber-900">Cópielo ahora: por seguridad el enlace no se vuelve a mostrar (si lo pierde, cree otro).</p>
+          <input readOnly value={nuevo.url} aria-label="Enlace para el cliente" onFocus={(e) => e.currentTarget.select()} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-xs" data-no-uppercase="true" />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" onClick={() => void copiar()}>{copiado ? 'Copiado' : 'Copiar enlace'}</Button>
+            <a className="text-sm font-semibold text-primary hover:underline" href={`https://wa.me/?text=${encodeURIComponent(`Le compartimos su cotización: ${nuevo.url}`)}`} target="_blank" rel="noreferrer">Enviar por WhatsApp</a>
+            <span className="text-xs text-gray-600">Vigente hasta {formatFechaHora(nuevo.vence_en)}</span>
+          </div>
+        </div>
+      )}
+      {(lista.datos ?? []).length > 0 && (
+        <ul className="space-y-1 text-xs text-gray-600">
+          {(lista.datos ?? []).map((e) => <li key={e.id}>{e.vigente ? 'Vigente' : e.revocado_en ? 'Anulado' : 'Vencido'} · creado {formatFechaHora(e.created_at)}{e.creado ? ` por ${e.creado}` : ''} · {e.aperturas === 0 ? 'todavía no lo abren' : `abierto ${e.aperturas} ${e.aperturas === 1 ? 'vez' : 'veces'}${e.primera_apertura_en ? `, la primera el ${formatFechaHora(e.primera_apertura_en)}` : ''}`}</li>)}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 // ── La ficha ──────────────────────────────────────────────────────────────────────────
 type Ventana = null | 'linea' | 'enviar' | 'anular' | { responder: LineaCotizacion; decision: 'autorizada' | 'rechazada' } | 'orden';
 
@@ -155,9 +223,9 @@ export function FichaCotizacion({ id, alCerrar, alCambiar, alAbrir }: { id: numb
       valor: (l) => l.estado,
       render: (l) => (
         <span>
-          <Badge variant={ESTADO_LINEA_COT[l.estado].variante}>{ESTADO_LINEA_COT[l.estado].texto}</Badge>
+          {c?.estado === 'borrador' ? <span className="text-xs text-gray-400">—</span> : <Badge variant={ESTADO_LINEA_COT[l.estado].variante}>{ESTADO_LINEA_COT[l.estado].texto}</Badge>}
           {l.estado === 'rechazada' && <span className="mt-1 block text-xs text-gray-600">{l.motivo_rechazo}{l.motivo_rechazo_texto ? `: ${l.motivo_rechazo_texto}` : ''}</span>}
-          {l.respondida_en && <span className="mt-1 block text-xs text-gray-500">{formatFechaHora(l.respondida_en)}{l.respondida_por ? ` · ${l.respondida_por}` : ''}</span>}
+          {l.respondida_en && <span className="mt-1 block text-xs text-gray-500">{formatFechaHora(l.respondida_en)}{l.respondida_por_nombre ? ` · ${l.respondida_por_nombre} (por enlace)` : l.respondida_por ? ` · ${l.respondida_por}` : ''}</span>}
           {l.estado === 'agregada_a_orden' && <span className="mt-1 block text-xs text-gray-500">{l.agregada_orden}{l.solicitud ? ` · pedido a bodega ${l.solicitud}` : ''}</span>}
         </span>
       ),
@@ -227,7 +295,8 @@ export function FichaCotizacion({ id, alCerrar, alCambiar, alAbrir }: { id: numb
               {puedeCotizar && tiene('ordenes.editar') && llevables > 0 && <Button variant="outline" onClick={() => { setOrdenId(''); setVentana('orden'); }}>Agregar lo autorizado a la orden ({llevables})</Button>}
               {puedeCotizar && borrador && <Button disabled={c.lineas.length === 0} onClick={() => { setVence(c.vence_en ?? iso(new Date(Date.now() + (opciones.datos?.vigencia_dias ?? 15) * 86400000))); setVentana('enviar'); }}>Enviar al cliente</Button>}
             </div>
-            {c.estado === 'enviada' && <p className="text-xs text-gray-500">Mientras llega el enlace para que el cliente responda solo (Fase 6b), quien habló con el cliente registra aquí si cada línea la autorizó o la rechazó.</p>}
+            {c.estado === 'enviada' && <EnlaceCliente id={c.id} puedeCrear={puedeCotizar} alCambiar={hecho} />}
+            {c.estado === 'enviada' && <p className="text-xs text-gray-500">Si el cliente responde por teléfono o en persona, quien habló con él registra aquí (botones «Autorizó» y «Rechazó») qué dijo de cada línea.</p>}
           </>
         )}
       </div>

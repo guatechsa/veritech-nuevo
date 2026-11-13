@@ -22,6 +22,7 @@ import {
   responderLinea,
   Vista,
 } from './cotizaciones';
+import { crearEnlaceCotizacion, listarEnlacesCotizacion, revocarEnlacesCotizacion } from './enlaces';
 import { exigirPermiso } from './sesion';
 
 const texto = (max: number) => z.string().trim().max(max);
@@ -134,6 +135,16 @@ export function montarRutasCotizaciones(router: Router, ctx: Contexto): void {
     const d = validar(z.object({ decision: z.enum(['autorizada', 'rechazada']), motivo_id: idPositivo.nullable().optional(), motivo_texto: nulo(300) }), req.body);
     const cotId = await responderLinea(ctx, taller(req), actorDe(req), idDe(req), { ...d, dispositivo: req.get('user-agent') ?? null, ip: req.ip ?? null });
     res.json({ success: true, data: await detalle(req, cotId) });
+  });
+  router.post('/cotizaciones/:id/enlace', cotizar, async (req, res) => {
+    const r = await crearEnlaceCotizacion(ctx, taller(req), actorDe(req), idDe(req));
+    res.status(201).json({ success: true, data: r });
+  });
+  router.post('/cotizaciones/:id/enlace/revocar', cotizar, async (req, res) => {
+    res.json({ success: true, data: { revocados: await revocarEnlacesCotizacion(ctx, taller(req), actorDe(req), idDe(req)) } });
+  });
+  router.get('/cotizaciones/:id/enlaces', ver, async (req, res) => {
+    res.json({ success: true, data: await listarEnlacesCotizacion(ctx, taller(req), idDe(req)) });
   });
   router.post('/cotizaciones/:id/agregar-a-orden', cotizar, exigirPermiso('ordenes.editar'), async (req, res) => {
     const d = validar(z.object({ orden_id: idPositivo.nullable().optional() }), req.body ?? {});

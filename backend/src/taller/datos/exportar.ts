@@ -356,7 +356,7 @@ export function hojasDeExportacion(): HojaExportada[] {
       nombre: 'Lineas de cotizaciones',
       sql: `SELECT l.id AS "Número", c.numero AS "Cotización", c.version AS "Versión", UPPER(l.tipo) AS "Tipo", l.descripcion AS "Descripción", l.cantidad AS "Cantidad", l.precio_unitario AS "Precio unitario", l.descuento_pct AS "Descuento %", l.total_linea AS "Total",
               l.costo AS "Costo (interno)", UPPER(REPLACE(l.estado, '_', ' ')) AS "Estado", mo.nombre AS "Motivo de rechazo", l.motivo_rechazo_texto AS "Detalle del rechazo", ${FECHA_HORA('l.respondida_en')} AS "Respondida (UTC)", co.nombre_completo AS "Registró la respuesta",
-              l.dispositivo AS "Dispositivo", l.ip AS "IP", ao.numero AS "Llevada a la orden", ${FECHA_HORA('l.agregada_en')} AS "Llevada (UTC)"
+              l.respondida_por_nombre AS "Respondió por enlace", l.dispositivo AS "Dispositivo", l.ip AS "IP", ao.numero AS "Llevada a la orden", ${FECHA_HORA('l.agregada_en')} AS "Llevada (UTC)"
             FROM cotizacion_lineas l JOIN cotizaciones c ON c.id = l.cotizacion_id LEFT JOIN motivos mo ON mo.id = l.motivo_rechazo_id LEFT JOIN usuarios u ON u.id = l.respondida_por_usuario_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id
               LEFT JOIN ordenes ao ON ao.id = l.agregada_orden_id ORDER BY c.id, l.id`,
     },
@@ -364,6 +364,12 @@ export function hojasDeExportacion(): HojaExportada[] {
       nombre: 'Rojos en cotizaciones',
       sql: `SELECT h.id AS "Número", c.numero AS "Cotización", c.version AS "Versión", r.seccion AS "Sección", r.descripcion AS "Ítem en rojo", r.nota AS "Nota"
             FROM cotizacion_hallazgos h JOIN cotizaciones c ON c.id = h.cotizacion_id JOIN checklist_respuestas r ON r.id = h.respuesta_id ORDER BY c.id, h.id`,
+    },
+    {
+      nombre: 'Enlaces publicos',
+      sql: `SELECT e.id AS "Número", UPPER(e.tipo) AS "Documento", e.entidad_id AS "Número del documento", co.nombre_completo AS "Lo creó", ${FECHA_HORA('e.created_at')} AS "Creado (UTC)", ${FECHA_HORA('e.vence_en')} AS "Vence (UTC)", ${FECHA_HORA('e.revocado_en')} AS "Revocado (UTC)",
+              ${FECHA_HORA('e.primera_apertura_en')} AS "Primera apertura (UTC)", e.primera_apertura_ip AS "Dirección de la primera apertura", ${FECHA_HORA('e.ultima_apertura_en')} AS "Última apertura (UTC)", e.aperturas AS "Aperturas"
+            FROM enlaces_publicos e LEFT JOIN usuarios u ON u.id = e.creado_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY e.id`,
     },
     {
       nombre: 'Roles',

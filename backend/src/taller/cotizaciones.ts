@@ -488,7 +488,7 @@ export async function obtenerCotizacion(ctx: Contexto, t: TallerReq, id: number,
   const lineas = await filas<Record<string, unknown>>(
     t.pool,
     `SELECT l.id, l.tipo, l.respuesta_id, l.trabajo_id, l.material_id, l.proveedor_id, pv.nombre AS proveedor, l.descripcion, l.cantidad, l.precio_unitario, l.descuento_pct, l.total_linea, l.costo, l.horas, l.area_trabajo_id,
-            l.estado, l.motivo_rechazo_id, mo.nombre AS motivo_rechazo, l.motivo_rechazo_texto, l.respondida_en, co.nombre_completo AS respondida_por, l.dispositivo, l.agregada_en, ao.numero AS agregada_orden, l.solicitud_id, sm.numero AS solicitud
+            l.estado, l.motivo_rechazo_id, mo.nombre AS motivo_rechazo, l.motivo_rechazo_texto, l.respondida_en, co.nombre_completo AS respondida_por, l.respondida_por_nombre, l.dispositivo, l.agregada_en, ao.numero AS agregada_orden, l.solicitud_id, sm.numero AS solicitud
        FROM cotizacion_lineas l LEFT JOIN proveedores pv ON pv.id = l.proveedor_id LEFT JOIN motivos mo ON mo.id = l.motivo_rechazo_id LEFT JOIN usuarios u ON u.id = l.respondida_por_usuario_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id
        LEFT JOIN ordenes ao ON ao.id = l.agregada_orden_id LEFT JOIN solicitudes_material sm ON sm.id = l.solicitud_id WHERE l.cotizacion_id = ? ORDER BY l.id`,
     [id]

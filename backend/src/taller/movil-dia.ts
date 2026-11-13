@@ -108,7 +108,8 @@ export async function miDia(ctx: Contexto, t: TallerReq, s: SesionDeTaller) {
     const c = await conTolerancia('citas', () => listarCitas(ctx, t, { desde: hoy, hasta: addDias(hoy, 1), estado: 'programada', pagina: 1, porPagina: 50 }), incompleto);
     if (c) {
       salida['citas'] = c.registros;
-      for (const x of c.registros) equipoIds.add(Number((x as unknown as Record<string, unknown>)['equipo_id']));
+      // Solo quien recibe equipos (con permiso de crear órdenes) necesita la ficha de cada uno; los demás ven la cita sin más.
+      if (p.has('ordenes.crear')) for (const x of c.registros) equipoIds.add(Number((x as unknown as Record<string, unknown>)['equipo_id']));
     }
   }
 

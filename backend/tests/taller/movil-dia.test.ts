@@ -81,7 +81,8 @@ describe('«Descargar mi día»', () => {
     expect((await m.api.post('/compras').send({ proveedor_id: m.proveedor, bodega_id: bodega, fecha_documento: dia(0), lineas: [{ material_id: material, cantidad: 10, costo_unitario: 10 }] })).status).toBe(201);
     const sol = await m.api.post('/solicitudes').send({ orden_id: m.orden, lineas: [{ material_id: material, cantidad: 2 }] });
     expect(sol.status).toBe(201);
-    expect((await m.api.post('/citas').send({ equipo_id: m.equipo, fecha: dia(0), hora: '23:00' })).status).toBe(201);
+    const otroEquipo = (await m.api.post('/equipos').send({ tipo_equipo_id: m.tipoVehiculo, cliente_id: m.cliente, codigo_interno: 'CAM-CITA' })).body.data.equipo.id as number;
+    expect((await m.api.post('/citas').send({ equipo_id: otroEquipo, fecha: dia(0), hora: '23:00' })).status).toBe(201);
 
     const bodeguero = await miDia(m.t.api(await (await m.t.usuario('bodeguero', 'bod@taller.test')).token()));
     expect((bodeguero['solicitudes'] as Array<{ id: number }>).map((x) => x.id)).toEqual([sol.body.data.id]);
@@ -94,7 +95,7 @@ describe('«Descargar mi día»', () => {
     expect(recepcion['solicitudes']).toBeUndefined();
     // La recepción también baja el detalle de las órdenes abiertas y el equipo de cada cita (para recibirlo con su contador).
     expect((recepcion['ordenes'] as Array<{ id: number }>).map((x) => x.id)).toEqual([m.orden]);
-    expect((recepcion['equipos'] as Array<{ id: number }>).map((x) => x.id)).toEqual([m.equipo]);
+    expect((recepcion['equipos'] as Array<{ id: number }>).map((x) => x.id).sort()).toEqual([m.equipo, otroEquipo].sort()); // el de la orden y el de la cita (que aún no tiene orden)
 
     const tecnico = await m.t.usuario('tecnico', 'tec@taller.test');
     await m.t.sql((c) => c.query('INSERT INTO asignaciones_operador (colaborador_id, equipo_id, desde) VALUES (?, ?, ?)', [tecnico.colaboradorId, m.equipo, dia(-5)]));
@@ -114,7 +115,8 @@ describe('«Descargar mi día»', () => {
     const recepcion = await miDia(m.t.api(await (await m.t.usuario('recepcionista', 'rec2@taller.test')).token()));
     const cat = recepcion['catalogos'] as Record<string, Array<Record<string, unknown>>>;
     expect(cat['estados_orden']!.length).toBeGreaterThan(1);
-    expect(cat['estados_orden']![0]).toHaveProperty('sale_equipo'); // para saber cuál estado es «entregar el equipo»
+    expect(cat['estados_orden']!.some((e) => e['sale_equipo'] === 1)).toBe(true); // para saber cuál estado es «entregar el equipo»
+    expect(cat['estados_orden']!.some((e) => e['sale_equipo'] === 0)).toBe(true);
     expect(cat['tipos_orden']!.length).toBeGreaterThan(0);
     expect(JSON.stringify(cat)).not.toMatch(/costo|precio|tarifa/);
     const todos = await miDia(m.api);

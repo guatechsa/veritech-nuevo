@@ -11,3 +11,8 @@ Thumbs.db
 
 # Credenciales locales de pruebas (nunca se suben)
 *.local.txt
+
+# App movil
+mobile/.expo/
+mobile/expo-env.d.ts
+mobile/dist/

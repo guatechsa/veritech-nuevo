@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "VERI-TECH",
+    "slug": "veritech-movil",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "scheme": "veritech",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "android": {
+      "package": "lat.veritech.mobile",
+      "versionCode": 20000,
+      "blockedPermissions": ["android.permission.RECORD_AUDIO", "android.permission.SYSTEM_ALERT_WINDOW"]
+    },
+    "ios": { "bundleIdentifier": "lat.veritech.mobile", "supportsTablet": true },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-sqlite",
+      ["expo-image-picker", { "cameraPermission": "VERI-TECH usa la cámara para tomar las fotos de los trabajos y de los checklists.", "microphonePermission": false }],
+      ["expo-camera", { "cameraPermission": "VERI-TECH usa la cámara para escanear el código QR de un equipo.", "recordAudioAndroid": false }],
+      ["expo-notifications", { "color": "#4997D0" }]
+    ],
+    "experiments": { "typedRoutes": false }
+  }
+}

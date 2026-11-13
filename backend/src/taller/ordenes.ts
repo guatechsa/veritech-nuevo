@@ -128,16 +128,22 @@ export async function listarOrdenes(t: TallerReq, vista: Vista, f: { buscar?: st
     donde.push('(o.numero LIKE ? OR e.codigo_interno LIKE ? OR e.placa LIKE ? OR e.serie LIKE ? OR c.nombre LIKE ? OR o.descripcion LIKE ?)');
     params.push(patron, patron, patron, patron, patron, patron);
   }
-  const de = `FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id JOIN tipos_orden tor ON tor.id = o.tipo_orden_id JOIN equipos e ON e.id = o.equipo_id
-              LEFT JOIN marcas m ON m.id = e.marca_id LEFT JOIN clientes c ON c.id = o.cliente_id LEFT JOIN colaboradores co ON co.id = o.responsable_id WHERE ${donde.join(' AND ')}`;
-  const total = await una<{ n: number }>(t.pool, `SELECT COUNT(*) AS n ${de}`, params);
+  // Con 40.000 órdenes lo caro es ordenar y unir todo para mostrar solo 50: se cuenta y se elige la página con lo mínimo (la orden y su estado; solo la búsqueda
+  // por texto necesita unir equipo y cliente) y recién entonces se arma la ficha de esas 50 («lectura tardía»).
+  const minimo = f.buscar
+    ? `FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id JOIN equipos e ON e.id = o.equipo_id LEFT JOIN clientes c ON c.id = o.cliente_id WHERE ${donde.join(' AND ')}`
+    : `FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id WHERE ${donde.join(' AND ')}`;
+  const total = await una<{ n: number }>(t.pool, `SELECT COUNT(*) AS n ${minimo}`, params);
   const registros = await filas<Record<string, unknown>>(
     t.pool,
     `SELECT o.id, o.numero, o.prioridad, o.descripcion, o.fecha_estimada_entrega, o.created_at, o.fecha_cierre, o.total,
             c.nombre AS cliente, e.id AS equipo_id, e.codigo_interno, e.placa, m.nombre AS marca, e.modelo, tor.nombre AS tipo, tor.es_pedido_especial,
             es.nombre AS estado, es.color AS estado_color, es.es_terminal, es.es_cancelado, co.nombre_completo AS responsable,
             (SELECT COUNT(*) FROM ingresos_equipo i WHERE i.orden_id = o.id AND i.salida_en IS NULL) AS equipo_en_taller
-       ${de} ORDER BY es.es_terminal, o.id DESC LIMIT ? OFFSET ?`,
+       FROM (SELECT o.id, es.es_terminal ${minimo} ORDER BY es.es_terminal, o.id DESC LIMIT ? OFFSET ?) p
+       JOIN ordenes o ON o.id = p.id JOIN estados_orden es ON es.id = o.estado_id JOIN tipos_orden tor ON tor.id = o.tipo_orden_id JOIN equipos e ON e.id = o.equipo_id
+       LEFT JOIN marcas m ON m.id = e.marca_id LEFT JOIN clientes c ON c.id = o.cliente_id LEFT JOIN colaboradores co ON co.id = o.responsable_id
+      ORDER BY p.es_terminal, o.id DESC`,
     [...params, f.porPagina, (f.pagina - 1) * f.porPagina]
   );
   return {

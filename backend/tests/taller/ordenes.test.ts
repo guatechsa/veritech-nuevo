@@ -333,4 +333,34 @@ describe('lo que las órdenes protegen en el resto del sistema', () => {
     expect((await m.api.get(`/ordenes?estado_id=${m.estados['CERRADA']}`)).body.data.total).toBe(1);
     expect(abiertas.registros[0]).toMatchObject({ equipo: expect.stringContaining('CAM-1'), cliente: 'INDUSTRIAS LOPEZ', total: 0 });
   });
+
+  it('el listado se pagina de a 50 sin repetir ni saltar órdenes: las abiertas primero y, dentro de cada grupo, la más nueva primero', async () => {
+    const m = await mundo(e);
+    const primera = ordenId(await nueva(m));
+    // 59 órdenes abiertas más (con la primera, 60), directo en la base (más rápido que crearlas una por una).
+    await m.t.sql(async (c) => {
+      await c.query(
+        `INSERT INTO ordenes (numero, cliente_id, equipo_id, sucursal_id, tipo_orden_id, estado_id, descripcion)
+         SELECT CONCAT('PAG-', LPAD(n.k, 4, '0')), cliente_id, equipo_id, sucursal_id, tipo_orden_id, (SELECT id FROM estados_orden WHERE es_inicial = 1 LIMIT 1), 'ORDEN DE PAGINA'
+           FROM ordenes o JOIN (SELECT a.n + 10 * b.n AS k FROM (SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a CROSS JOIN (SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5) b) n ON n.k < 59 WHERE o.id = ?`,
+        [primera]
+      );
+    });
+    // Y una cerrada que es la MÁS NUEVA: aun así debe salir al final (las abiertas primero).
+    const ultima = ordenId(await nueva(m));
+    await m.api.post(`/ordenes/${ultima}/estado`).send({ estado_id: m.estados['CERRADA'] });
+    const p1 = (await m.api.get('/ordenes?pagina=1')).body.data;
+    const p2 = (await m.api.get('/ordenes?pagina=2')).body.data;
+    expect(p1.total).toBe(61);
+    expect(p1.registros).toHaveLength(50);
+    expect(p2.registros).toHaveLength(11);
+    const ids = [...p1.registros, ...p2.registros].map((o: { id: number }) => o.id);
+    expect(new Set(ids).size).toBe(61); // ninguna repetida ni salteada
+    const abiertasPrimero = [...p1.registros, ...p2.registros].map((o: { es_terminal: number }) => o.es_terminal);
+    expect(abiertasPrimero).toEqual([...abiertasPrimero].sort((x, y) => x - y)); // todas las abiertas antes que la cerrada
+    const soloAbiertas = ids.slice(0, 60);
+    expect(soloAbiertas).toEqual([...soloAbiertas].sort((x, y) => y - x)); // la más nueva primero
+    expect(ids[60]).toBe(ultima);
+    expect((await m.api.get('/ordenes?buscar=PAGINA&pagina=2')).body.data.registros).toHaveLength(9);
+  });
 });

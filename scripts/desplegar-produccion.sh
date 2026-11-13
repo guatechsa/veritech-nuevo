@@ -19,7 +19,7 @@ echo "== Revisando que este commit esté subido y aprobado por la integración c
 git fetch -q origin master
 HEAD_SHA=$(git rev-parse HEAD)
 [ "$(git rev-parse origin/master)" = "$HEAD_SHA" ] || { echo "ABORTA: el commit actual no es el último de master en GitHub (suba o actualice primero)."; exit 1; }
-[ -z "$(git status --porcelain)" ] || { echo "ABORTA: hay cambios sin guardar en el repositorio."; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "ABORTA: hay cambios sin guardar en el repositorio."; exit 1; }
 TOKEN=$(printf "protocol=https\nhost=github.com\n\n" | git credential fill 2>/dev/null | sed -n 's/^password=//p')
 ESTADO=$(curl -s -m 30 -H "Authorization: Bearer $TOKEN" "https://api.github.com/repos/guatechsa/veritech-nuevo/actions/runs?head_sha=$HEAD_SHA&per_page=1" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{const r=(JSON.parse(d).workflow_runs||[])[0];console.log(r?r.status+"|"+r.conclusion:"sin_corrida")})')
 [ "$ESTADO" = "completed|success" ] || { echo "ABORTA: la integración continua de este commit no está en verde (estado: $ESTADO)."; exit 1; }

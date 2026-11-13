@@ -1,8 +1,9 @@
 // Sondeo de seguridad de SOLO LECTURA contra un sitio del sistema nuevo (no modifica nada ni usa cuentas reales).
-// Uso: node scripts/seguridad/sondeo.js https://pruebas.veritech.lat [slug-de-un-taller]
+// Uso: node scripts/seguridad/sondeo.js https://pruebas.veritech.lat [slug-de-un-taller] [--limite]
+// --limite agrega la prueba del freno de intentos (25 ingresos malos seguidos): bloquea ESA conexión unos minutos para ese taller, así que no se usa en sitios con gente trabajando.
 // Revisa: cabeceras de seguridad, archivos que no deben verse, rutas que exigen sesión, CORS, límites de intentos y errores que no filtren detalles.
 const base = (process.argv[2] ?? 'https://pruebas.veritech.lat').replace(/\/$/, '');
-const slug = process.argv[3] ?? 'prueba1';
+const slug = process.argv.slice(3).find((a) => !a.startsWith('--')) ?? 'prueba1';
 const resultados = [];
 const anotar = (ok, que, detalle = '') => resultados.push({ ok, que, detalle });
 
@@ -68,11 +69,11 @@ async function pedir(ruta, opciones = {}) {
 
   // 7. Límite de intentos en el ingreso (20 intentos seguidos con una clave mala deben toparse con 429).
   let limitado = false;
-  for (let i = 0; i < 25 && !limitado; i++) {
+  if (process.argv.includes('--limite')) for (let i = 0; i < 25 && !limitado; i++) {
     const r = await pedir('/api/taller/auth/ingresar', { method: 'POST', headers: { 'X-Taller': slug, 'Content-Type': 'application/json' }, body: JSON.stringify({ correo: `sondeo${i}@noexiste.test`, contrasena: 'Mala-clave-2026!' }) });
     if (r.estado === 429) limitado = true;
   }
-  anotar(limitado, 'el ingreso se frena tras muchos intentos (429)');
+  if (process.argv.includes('--limite')) anotar(limitado, 'el ingreso se frena tras muchos intentos (429)');
 
   // 8. Enlaces públicos: un token inventado no da nada y no dice si «casi» existe.
   const pub = await pedir('/api/taller/publico/cotizacion/' + 'b'.repeat(40), { headers: { 'X-Taller': slug } });

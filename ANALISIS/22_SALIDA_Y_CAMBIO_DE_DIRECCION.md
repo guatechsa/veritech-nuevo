@@ -1,5 +1,8 @@
 # 22 — Salida: pasar de VERI-TECH 3.xxx a 4.000 (guion para Luis)
 
+## ESTADO DE LA SALIDA (13/11/2026, noche): HECHA en el sitio definitivo `https://app.veritech.lat`
+Luis eligió la dirección única `app.veritech.lat/t/<taller>`. Ya están en vivo: el sitio (versión 4.000, certificado propio de Let's Encrypt, sondeo de seguridad 52 de 52 sin la prueba de límite), el **super administrador** de la plataforma, el taller de cortesía **`enova`** con sus datos trasladados (cifras de control todas OK: 1 cliente, 5 equipos con sus medidores, 4 materiales, 12 colaboradores, 1 orden abierta) y el taller de demostración **`demo`** con datos de ejemplo. Las tres contraseñas temporales están en `C:GUATECHACCESOS_VERITECH_4` (fuera del repositorio; cámbielas al ingresar). Los tres accesos se crearon con el correo de la cuenta de Luis porque no indicó otro. **No se tocó el sistema viejo ni se borró nada.** Falta: correo (SMTP), PayPal en vivo, invitar a las personas de `enova`, su revisión del informe, Google Play, y retirar `cafe`/`waga` (solo con su orden). Dónde está cada cosa en el servidor: código `/home/veritech/app`, página `/home/veritech/app.veritech.lat`, archivos `/home/veritech/archivos-app`, base `veritech_app_*`, proceso pm2 `veritech-app` (puerto 4310), configuración `/home/veritech/app/backend/.env` (solo lectura para la cuenta). Para volver a desplegar: `bash scripts/desplegar-produccion.sh` (exige commit subido y en verde).
+
 Este guion es para el día de la salida. **Nada de esto se ha ejecutado en producción**: lo único que se tocó del sistema viejo fue leerlo (conteos y copias de seguridad). Cada paso dice quién lo hace y qué se comprueba antes de seguir.
 
 ## 0. Qué ya está hecho y verificado

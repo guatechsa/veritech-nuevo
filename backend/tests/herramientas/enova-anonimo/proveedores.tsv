@@ -1,0 +1,2 @@
+id	nombre	nit	telefono	email	direccion	condicion_pago	dias_credito	contacto_nombre	contacto_email	contacto_telefono	notas	status	created_at	updated_at
+1	PROVEEDOR DE PRUEBA	NULL	NULL	NULL	NULL	contado	NULL	NULL	NULL	NULL	NULL	Activo	2026-08-04 13:00:24	2026-08-04 13:00:24

@@ -1,0 +1,6 @@
+id	plate	brand	model	year	vin	engine_serial	engine_brand	engine_model	engine_description	tipo_equipo_codigo	color	fuel_type	capacidad_tanque_galones	rendimiento_combustible	rendimiento_unidad	odometer	hours	mileage	client_id	departamento_id	notes	status	ownership_type	coverage_type	internal_code	created_at	updated_at	codigo_publico
+47	PL-0	HENGWANG	HWL-500R	2025	SERIE-PRUEBA-0	NULL	NULL	NULL	NULL	HIN	ANARANJADO	Diésel	NULL	NULL	gal/hr	0	0	0	18	NULL	NULL	Activo	PROPIO	RC	EQ-1	2026-08-03 09:55:09	2026-08-05 17:52:52	NULL
+48	NULL	HENWANG	HVV60	2024	SERIE-PRUEBA-1	NULL	NULL	NULL	NULL	CMP	NULL	Diésel	NULL	NULL	gal/hr	0	0	0	18	NULL	NULL	Activo	PROPIO	RC	EQ-2	2026-08-03 09:58:34	2026-08-05 18:04:19	NULL
+49	PL-2	HENGWANG	HW-3510	2026	SERIE-PRUEBA-2	93657452	CUMMINS	93KW	NULL	TELE	VERDE / GRIS	Diésel	28.4	1.00	gal/hr	0	0	0	18	NULL	NULL	Activo	PROPIO	RC	EQ-3	2026-08-03 10:00:17	2026-08-29 13:53:29	NULL
+50	PL-3	GENERAL	CUADRILLA1	NULL	SERIE-PRUEBA-3	NULL	NULL	NULL	NULL	CUA	NULL	Gasolina	NULL	NULL	km/gal	0	0	0	18	NULL	NULL	Activo	PROPIO	RC	EQ-4	2026-08-03 10:40:52	2026-08-03 10:40:52	NULL
+51	PL-4	GENERAL	CUAD2	NULL	SERIE-PRUEBA-4	NULL	NULL	NULL	NULL	CUA	NULL	Gasolina	NULL	NULL	km/gal	0	0	0	18	NULL	NULL	Activo	PROPIO	RC	EQ-5	2026-08-03 10:42:05	2026-08-03 10:42:05	NULL

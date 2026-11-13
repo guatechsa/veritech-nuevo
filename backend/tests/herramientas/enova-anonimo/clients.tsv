@@ -1,0 +1,2 @@
+id	tipo_cliente_id	name	email	phone	contact	phone2	nit	address	city	country	notes	status	created_at	updated_at
+18	1	CLIENTE DE PRUEBA S.A.	cliente@ejemplo.test	5555 0001	CONTACTO DE PRUEBA	5555 0002	NULL		GUATEMALA	NULL	NULL	Activo	2026-08-03 09:52:13	2026-08-04 13:04:37

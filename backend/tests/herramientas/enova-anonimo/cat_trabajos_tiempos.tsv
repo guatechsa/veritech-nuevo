@@ -1,0 +1,4 @@
+id	codigo_trabajo_completo	trabajo_nombre	codigo_parte	codigo_accion	tipo_equipo_codigo	tiempo_horas	costo_estimado	notas	activo	created_at	updated_at
+930	09-02-01-MON-02	MONTAR - HINCA - ESTRUCTURA	09-02-01	MON	HIN	0.16	0.00	NULL	1	2026-08-04 12:55:44	2026-08-04 14:17:44
+938	09-02-01-MON-01	MONTAR - HINCA - ESTRUCTURA	09-02-01	MON	HIN	0.16	0.00	NULL	1	2026-08-04 14:17:26	2026-08-04 14:17:26
+939	09-02-01-MON-03	MONTAR - HINCA - ESTRUCTURA	09-02-01	MON	HIN	0.16	0.00	NULL	1	2026-08-04 14:17:54	2026-08-04 14:17:54

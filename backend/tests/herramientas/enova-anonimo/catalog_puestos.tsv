@@ -1,0 +1,9 @@
+id	nombre	descripcion	requiere_dpi_licencia	es_tecnico	activo	created_at	updated_at
+1	Técnico	NULL	0	1	1	2026-08-25 23:32:39	2026-08-25 23:32:39
+2	Operador de Equipo	NULL	1	0	1	2026-08-25 23:32:39	2026-08-25 23:32:39
+3	Supervisor	NULL	0	0	1	2026-08-25 23:32:39	2026-08-25 23:32:39
+4	Administrador	NULL	0	0	1	2026-08-25 23:32:39	2026-08-25 23:32:39
+5	Gerente	NULL	0	0	1	2026-08-25 23:32:39	2026-08-25 23:32:39
+6	Bodeguero	NULL	0	0	1	2026-08-25 23:32:39	2026-08-25 23:32:39
+7	Recepcionista	NULL	0	0	1	2026-08-25 23:32:39	2026-08-25 23:32:39
+8	Colaborador General	NULL	0	0	1	2026-08-25 23:32:39	2026-08-25 23:32:39

@@ -1,0 +1,6 @@
+id	equipo_id	nombre	tipo_contador_id	unidad	valor_inicial	valor_actual	fecha_inicio	orden	frecuencia_mantenimiento	estrategia_mantenimiento_id	paquete_inspeccion_id	notificar_vencimiento	activo	created_at	updated_at
+102	47	HR	7	HRS	0.00	1.00	2026-08-03	1	NULL	NULL	NULL	1	1	2026-08-03 09:55:09	2026-08-04 13:08:57
+103	48	HR	7	HRS	0.00	0.00	2026-08-03	1	NULL	NULL	NULL	1	1	2026-08-03 09:58:34	2026-08-03 09:58:34
+104	49	HR	7	HRS	14.20	14.20	2026-08-12	1	NULL	NULL	NULL	1	1	2026-08-03 10:00:17	2026-08-29 13:53:29
+105	50	DIAS	15	DIAS	0.00	0.00	2026-08-03	1	NULL	NULL	NULL	1	1	2026-08-03 10:40:52	2026-08-03 10:40:52
+106	51	DIAS	15	DIAS	0.00	0.00	2026-08-03	1	NULL	NULL	NULL	1	1	2026-08-03 10:42:05	2026-08-03 10:42:05

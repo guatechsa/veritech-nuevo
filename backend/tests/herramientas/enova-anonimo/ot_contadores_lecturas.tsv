@@ -1,0 +1,7 @@
+id	order_id	checklist_id	equipo_contador_id	valor_lectura	tipo_lectura	registrado_por	notas	fecha_lectura	evidencia_foto_url	evidencia_foto_nombre	created_at
+14	NULL	NULL	102	0.00	inicial	7	NULL	2026-08-03	NULL	NULL	2026-08-03 09:55:09
+15	NULL	NULL	103	0.00	inicial	7	NULL	2026-08-03	NULL	NULL	2026-08-03 09:58:34
+16	NULL	NULL	104	0.00	inicial	7	NULL	2026-08-03	NULL	NULL	2026-08-03 10:00:17
+17	NULL	NULL	105	0.00	inicial	7	NULL	2026-08-03	NULL	NULL	2026-08-03 10:40:52
+18	NULL	NULL	106	0.00	inicial	7	NULL	2026-08-03	NULL	NULL	2026-08-03 10:42:05
+19	24	NULL	102	1.00	entrada	7	NULL	2026-08-04	NULL	NULL	2026-08-04 13:08:57

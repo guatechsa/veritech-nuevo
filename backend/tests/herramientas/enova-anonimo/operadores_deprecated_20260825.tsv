@@ -1,0 +1,2 @@
+id	codigo	nombre_completo	direccion	dpi	celular	correo	licencia_numero	licencia_vence	cliente_texto	status	created_at	updated_at
+58	2001	COLABORADOR DE PRUEBA 1	NULL	NULL	NULL	NULL	NULL	2027-03-08	NULL	Activo	2026-08-03 19:56:26	2026-08-04 18:52:56

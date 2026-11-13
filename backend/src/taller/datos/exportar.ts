@@ -378,6 +378,14 @@ export function hojasDeExportacion(): HojaExportada[] {
             FROM documentos_emitidos d LEFT JOIN ordenes o ON o.id = d.orden_id LEFT JOIN cotizaciones ct ON ct.id = d.cotizacion_id JOIN archivos a ON a.id = d.archivo_id LEFT JOIN usuarios u ON u.id = d.emitido_por_id LEFT JOIN colaboradores co ON co.id = u.colaborador_id ORDER BY d.id`,
     },
     {
+      nombre: 'Metas de indicadores',
+      sql: `SELECT m.indicador AS "Indicador", m.sentido AS "Entre más… mejor", m.meta AS "Meta (verde)", m.limite AS "Límite (amarillo)" FROM metas_indicadores m ORDER BY m.indicador`,
+    },
+    {
+      nombre: 'Tablero por rol',
+      sql: `SELECT r.nombre AS "Rol", t.tarjeta AS "Tarjeta", t.orden AS "Orden" FROM tablero_roles t JOIN roles r ON r.id = t.rol_id ORDER BY r.id, t.orden`,
+    },
+    {
       nombre: 'Roles',
       sql: `SELECT r.codigo AS "Código", r.nombre AS "Nombre", r.descripcion AS "Descripción", ${SI_NO('r.es_sistema')} AS "Viene con el sistema", ${SI_NO('r.activo')} AS "Activo",
               (SELECT GROUP_CONCAT(rp.permiso_codigo ORDER BY rp.permiso_codigo SEPARATOR ', ') FROM rol_permisos rp WHERE rp.rol_id = r.id) AS "Permisos"

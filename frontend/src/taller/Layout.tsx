@@ -1,4 +1,4 @@
-import { CalendarClock, CalendarDays, CircleAlert, ClipboardList, FileText, Hammer, Home, KeyRound, LifeBuoy, LogOut, Menu, Package, Settings, Truck, Users, Wrench, X } from 'lucide-react';
+import { CalendarClock, CalendarDays, CircleAlert, BarChart3, ClipboardList, FileText, Hammer, Home, KeyRound, LifeBuoy, LogOut, Menu, Package, Settings, Truck, Users, Wrench, X } from 'lucide-react';
 import { FormEvent, ReactNode, useState } from 'react';
 import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
 import Button from '../components/ui-guatech/Button.jsx';
@@ -109,6 +109,7 @@ const MENU: Array<{ a: string; etiqueta: string; icono: typeof Home; permiso?: s
   { a: '/cotizaciones', etiqueta: 'Cotizaciones', icono: FileText, permiso: 'cotizaciones.ver' },
   { a: '/servicios', etiqueta: 'Servicios', icono: CalendarClock, permiso: 'servicios.ver' },
   { a: '/inventario', etiqueta: 'Inventario', icono: Package, permiso: 'inventario.ver' },
+  { a: '/reportes', etiqueta: 'Reportes', icono: BarChart3, permiso: 'reportes.ver' },
   { a: '/configuracion', etiqueta: 'Configuración', icono: Settings },
 ];
 

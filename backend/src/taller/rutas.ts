@@ -17,7 +17,9 @@ import { montarRutasInventario } from './rutas-inventario';
 import { montarRutasOrdenes } from './rutas-ordenes';
 import { montarRutasReservas } from './rutas-reservas';
 import { montarRutasAvisos } from './rutas-avisos';
+import { conIdentificador } from './movil-idempotencia';
 import { montarRutasEnlaces } from './rutas-enlaces';
+import { montarRutasMovil, montarRutasMovilPublicas } from './rutas-movil';
 import { montarRutasInformes } from './rutas-informes';
 import { montarRutasPublicas } from './rutas-portal';
 import { montarRutasReportes } from './rutas-reportes';
@@ -103,11 +105,14 @@ export function crearRutasTaller(ctx: Contexto): Router {
   });
 
   montarRutasPublicas(router, ctx, limitador(topePublico, 15), limitador(topeRecuperacion, 60), turnstile);
+  montarRutasMovilPublicas(router, ctx, limitador(tope, 15), turnstile);
 
   // ── Todo lo demás exige sesión ────────────────────────────────────────────────────
   const requiereSesion = autenticarTaller(ctx);
   router.use(requiereSesion);
   router.use(bloquearCambiosSiSoloExportar());
+  router.use(conIdentificador(ctx)); // los cambios de la app llevan un identificador: reenviarlos nunca los duplica
+  montarRutasMovil(router, ctx);
 
   router.get('/auth/yo', async (req, res) => {
     res.json({ success: true, data: await perfilDeSesion(req.taller!, req.sesionTaller!) });

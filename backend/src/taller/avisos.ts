@@ -5,6 +5,7 @@ import { ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { escaparHtml } from '../utils/html';
 import { urlBaseDeTaller } from './auth';
+import { pushSolicitudNueva } from './avisos-push';
 import { Actor, bitacora, TallerReq } from './comun';
 
 /**
@@ -336,6 +337,7 @@ export async function avisarSolicitudNueva(ctx: Contexto, t: TallerReq, solicitu
     );
     if (!s) return;
     await emitirAviso(ctx, t, { tipo: 'solicitud_material_nueva', clave: `sol:${solicitudId}`, referencia: s.numero, ruta: '/inventario?tab=solicitudes', datos: { solicitud: s.numero, orden: s.orden, equipo: s.equipo ?? '-', solicitante: s.solicitante ?? '-', lineas: String(s.lineas) } });
+    await pushSolicitudNueva(ctx, t, solicitudId);
   } catch (error) {
     console.error('[avisos] solicitud nueva:', error instanceof Error ? error.message : error);
   }

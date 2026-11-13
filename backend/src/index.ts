@@ -8,7 +8,8 @@ import { procesarCola } from './correos/cola';
 import { crearTransporteSmtp } from './correos/transporte';
 import { crearPool } from './db/conexion';
 import { Contexto } from './plataforma/contexto';
-import { barrerAvisos } from './taller/avisos-barrido';
+import { barrerAvisos, barrerPush } from './taller/avisos-barrido';
+import { crearTransporteExpo } from './taller/avisos-push';
 import { APP_VERSION } from './version';
 
 const entorno = leerEntorno();
@@ -61,6 +62,9 @@ if (pagos) {
 }
 // Avisos incluidos de cada taller (servicios, citas, vencimientos, resúmenes): cada 15 minutos. Cada hecho se avisa una sola vez.
 cada('avisos', 15 * 60 * 1000, () => barrerAvisos(ctx), 2 * 60 * 1000);
+// Avisos al teléfono (app móvil): la cola se manda cada 30 segundos.
+const transportePush = crearTransporteExpo(entorno);
+cada('push', 30_000, () => barrerPush(ctx, transportePush), 45_000);
 // Ciclo de vida (gracia, cierre de cuentas, avisos, altas atoradas): cada hora.
 cada('ciclo', 60 * 60 * 1000, () => barrerCicloDeVida(ctx), 60 * 1000);
 

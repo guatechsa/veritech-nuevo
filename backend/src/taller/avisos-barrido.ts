@@ -2,6 +2,7 @@ import { filas } from '../db/consulta';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { localDeUtc, limitesDelDia } from '../utils/zona';
 import { correoDeUsuario, emitirAviso, ResultadoAviso } from './avisos';
+import { enviarPendientesPush, revisarPush, TransportePush } from './avisos-push';
 import { TallerReq } from './comun';
 import { hoyDelTaller } from './contadores';
 import { ESTADOS_QUE_TRABAJAN, poolsDe } from './contexto';
@@ -196,6 +197,10 @@ export async function revisarAvisosDeTaller(ctx: Contexto, t: TallerReq): Promis
       });
     }
   }
+  await paso('avisos al teléfono', async () => {
+    const n = await revisarPush(ctx, t);
+    if (n > 0) res['push'] = n;
+  });
   await paso('reportes programados', async () => {
     const n = await enviarProgramados(ctx, t);
     if (n > 0) res['reporte_programado'] = n;
@@ -230,4 +235,20 @@ export async function barrerAvisos(ctx: Contexto): Promise<{ talleres: number; a
     }
   }
   return { talleres: empresas.length, avisos };
+}
+
+/** Manda los avisos al teléfono que están en cola, en todos los talleres que trabajan (cada 30 segundos). */
+export async function barrerPush(ctx: Contexto, transporte: TransportePush): Promise<{ talleres: number; enviadas: number }> {
+  const empresas = await filas<{ slug: string }>(ctx.pool, `SELECT slug FROM empresas WHERE estado IN (${ESTADOS_QUE_TRABAJAN.map(() => '?').join(',')}) AND nombre_bd IS NOT NULL ORDER BY id`, [...ESTADOS_QUE_TRABAJAN]);
+  let enviadas = 0;
+  for (const { slug } of empresas) {
+    try {
+      const empresa = await buscarEmpresa(ctx, slug);
+      if (!empresa) continue;
+      enviadas += (await enviarPendientesPush(ctx, { empresa, pool: poolsDe(ctx).obtener(empresa.nombreBd) }, transporte)).enviadas;
+    } catch (error) {
+      console.error(`[push] taller ${slug}:`, error instanceof Error ? error.message : error);
+    }
+  }
+  return { talleres: empresas.length, enviadas };
 }

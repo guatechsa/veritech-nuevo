@@ -6,6 +6,7 @@ import { normalizarCampo } from '../utils/texto';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
 import { registrarUsoEnEquipo } from './aplicabilidad';
 import { avisarMaterialCargado, avisarSolicitudNueva } from './avisos';
+import { pushMaterialCargado } from './avisos-push';
 import { hoyDelTaller } from './contadores';
 import { aplicarMovimiento, ConfigPrecios, configDeInventario, margenDe, precioDe, Vista } from './inventario';
 import { bloquearOrdenAbierta, cargarMaterialEnOrden } from './ordenes';
@@ -190,6 +191,7 @@ export async function despachar(ctx: Contexto, t: TallerReq, actor: Actor, id: n
   for (const i of items) if (!Number.isInteger(i.cantidad) || i.cantidad <= 0) throw new ErrorValidacion('Las cantidades deben ser números enteros mayores que cero');
   const r = await transaccion(t.pool, (con) => despacharEn(ctx, t, con, actor, id, items));
   await avisarMaterialCargado(ctx, t, id);
+  await pushMaterialCargado(ctx, t, id);
   return r;
 }
 

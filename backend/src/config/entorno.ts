@@ -24,6 +24,7 @@ const esquema = z.object({
   SMTP_SEGURO: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   SMTP_USUARIO: textoOpcional,
   SMTP_CLAVE: textoOpcional,
+  EXPO_ACCESS_TOKEN: textoOpcional,
   SMTP_DESDE: z.string().default('VERI-TECH <noreply@veritech.lat>'),
   /** Casilla anti-robots de Cloudflare para formularios públicos. Si falta, no se exige (como en el sistema actual). */
   TURNSTILE_SECRET: textoOpcional,

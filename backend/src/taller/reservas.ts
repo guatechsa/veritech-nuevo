@@ -3,6 +3,7 @@ import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { normalizarCampo } from '../utils/texto';
 import { avisarMaterialCargado } from './avisos';
+import { pushMaterialCargado } from './avisos-push';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
 import { hoyDelTaller } from './contadores';
 import { bloquearOrdenAbierta } from './ordenes';
@@ -268,6 +269,7 @@ export async function cargarReserva(ctx: Contexto, t: TallerReq, actor: Actor, i
     return { id, solicitud_id: sol.id };
   });
   await avisarMaterialCargado(ctx, t, resultado.solicitud_id);
+  await pushMaterialCargado(ctx, t, resultado.solicitud_id);
   return resultado;
 }
 

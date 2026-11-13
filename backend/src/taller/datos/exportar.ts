@@ -33,6 +33,10 @@ export const TABLAS_NO_EXPORTADAS: Record<string, string> = {
   vistas_guardadas: 'Preferencias personales de cada usuario (cómo le gusta ver cada reporte); no es información del taller.',
   portal_codigos: 'Códigos de entrada al portal: son secretos de un solo uso.',
   portal_sesiones: 'Sesiones abiertas del portal: son llaves de acceso y no tienen valor fuera del sistema.',
+  dispositivos: 'Teléfonos de las personas y sus códigos de avisos: son datos técnicos de acceso.',
+  mutaciones_procesadas: 'Control técnico de los cambios que hace la app móvil (evita duplicarlos).',
+  preferencias_aviso: 'Preferencias personales de avisos de cada usuario.',
+  notificaciones_push: 'Cola de avisos al teléfono: es técnica y de corta vida.',
   avisos_registro: 'Constancia técnica de los avisos ya enviados (evita avisar dos veces lo mismo); no es información del taller.',
   bitacora: 'PENDIENTE: puede ser enorme y no cabe en un libro de Excel; se descargará aparte en CSV.',
 };

@@ -2,6 +2,7 @@ import express, { Request, Router } from 'express';
 import { z } from 'zod';
 import { ErrorValidacion } from '../errores';
 import { Contexto } from '../plataforma/contexto';
+import { pushTrabajoAsignado } from './avisos-push';
 import { MAXIMO_BYTES, nombreDeLaPeticion } from './archivos';
 import { actorDe, idDe, validar } from './comun';
 import {
@@ -135,6 +136,7 @@ export function montarRutasOrdenes(router: Router, ctx: Contexto): void {
       req.body
     );
     await agregarLinea(taller(req), actorDe(req), idDe(req), d);
+    if (d.tecnico_id) await pushTrabajoAsignado(ctx, taller(req), { ordenId: idDe(req), colaboradorId: d.tecnico_id });
     res.status(201).json({ success: true, data: await fichaPara(ctx, req, idDe(req)) });
   });
 
@@ -153,6 +155,7 @@ export function montarRutasOrdenes(router: Router, ctx: Contexto): void {
       req.body
     );
     const o = await actualizarLinea(taller(req), actorDe(req), idDe(req), d);
+    if (d.tecnico_id) await pushTrabajoAsignado(ctx, taller(req), { ordenId: o, colaboradorId: d.tecnico_id });
     res.json({ success: true, data: await fichaPara(ctx, req, o) });
   });
 

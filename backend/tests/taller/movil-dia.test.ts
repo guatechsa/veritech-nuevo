@@ -108,6 +108,9 @@ describe('«Descargar mi día»', () => {
     const op = (await m.api.get('/inventario-opciones')).body.data as { unidades: Array<{ id: number; codigo: string }>; partes: Array<{ id: number; clasificacion: string }> };
     const material = await m.api.post('/materiales').send({ codigo: 'FIL-1', nombre: 'Filtro de aceite', parte_id: op.partes.find((p) => p.clasificacion.startsWith('99-'))!.id, unidad_id: op.unidades[0]!.id });
     expect(material.status).toBe(201);
+    const viejo = await m.api.post('/materiales').send({ codigo: 'VIEJO-1', nombre: 'Material descontinuado', parte_id: op.partes.find((p) => p.clasificacion.startsWith('99-'))!.id, unidad_id: op.unidades[0]!.id });
+    expect(viejo.status).toBe(201);
+    await m.t.sql((c) => c.query("UPDATE materiales SET activo = 0 WHERE codigo = 'VIEJO-1'"));
     const recepcion = await miDia(m.t.api(await (await m.t.usuario('recepcionista', 'rec2@taller.test')).token()));
     const cat = recepcion['catalogos'] as Record<string, Array<Record<string, unknown>>>;
     expect(cat['estados_orden']!.length).toBeGreaterThan(1);
@@ -117,6 +120,7 @@ describe('«Descargar mi día»', () => {
     const todos = await miDia(m.api);
     const cat2 = todos['catalogos'] as Record<string, Array<Record<string, unknown>>>;
     expect(cat2['materiales']!.map((x) => x['codigo'])).toContain('FIL-1');
+    expect(cat2['materiales']!.map((x) => x['codigo'])).not.toContain('VIEJO-1'); // los descontinuados no se ofrecen para pedir
     expect(Object.keys(cat2['materiales']![0]!).sort()).toEqual(['codigo', 'id', 'nombre', 'unidad']);
     expect(cat2['checklist_tipos']!.some((x) => String(x['nombre']).toUpperCase() === 'REVISION DE FRENOS')).toBe(true);
     // El visualizador no pide, no entrega y no llena: no baja ningún catálogo.

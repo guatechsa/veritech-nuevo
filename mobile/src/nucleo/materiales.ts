@@ -20,7 +20,8 @@ export const MAXIMO_LINEAS_POR_SOLICITUD = 50;
 export const MAXIMO_POR_LINEA = 1_000_000;
 
 /** Para comparar sin importar mayúsculas ni tildes («aceite» encuentra «ACEITE», «bateria» encuentra «BATERÍA»). */
-export const sinTildes = (t: string): string => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+const MARCAS_DE_TILDE = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g'); // las marcas que NFD separa de la letra
+export const sinTildes = (t: string): string => t.normalize('NFD').replace(MARCAS_DE_TILDE, '').toUpperCase();
 
 /** Cada palabra escrita debe estar en el código o el nombre; sin texto se muestran los primeros. */
 export function buscarMateriales(catalogo: MaterialDelCatalogo[], texto: string, limite = 30): MaterialDelCatalogo[] {

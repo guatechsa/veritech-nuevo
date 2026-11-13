@@ -96,6 +96,20 @@ describe('la firma del cliente en el checklist', () => {
     expect(todos[0]!.motivo).toContain('no lleva firma');
   });
 
+  it('si una respuesta anterior se rechaza, la firma y completar tampoco se mandan (todo el checklist queda a la vista, sin mandar nada a medias)', async () => {
+    const m = await montar();
+    m.servidor.en('PATCH', /.*/, 'sin_senal').en('POST', /.*/, 'sin_senal');
+    await m.acciones.responderItem(21, 31, { semaforo: 'rojo' }, 'Punto 31');
+    await m.acciones.firmarChecklist(21, 'Juan Pérez', FIRMA);
+    await m.acciones.completarChecklist(21, null, 'Recepción');
+    await m.sincronizador.sincronizar(); // sin señal: todo queda esperando
+    m.servidor.vaciar();
+    m.servidor.en('PATCH', '/checklists/21/respuestas/31', mal(400, 'VALIDACION', 'Elija el motivo')).en('POST', '/checklists/21/firma', ok({})).en('POST', '/checklists/21/completar', ok({}));
+    await m.sincronizador.sincronizar();
+    expect(m.servidor.llamadas.map((l) => l.ruta)).toEqual(['/checklists/21/respuestas/31']);
+    expect((await m.cola.todos()).map((c) => c.estado)).toEqual(['rechazado', 'rechazado', 'rechazado']);
+  });
+
   it('no se puede completar sin firma si el tipo la pide; con la firma (aunque sea del teléfono) sí', async () => {
     const m = await montar();
     m.servidor.en('POST', /.*/, 'sin_senal');

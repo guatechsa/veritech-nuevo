@@ -8,6 +8,7 @@ Este guion es para el día de la salida. **Nada de esto se ha ejecutado en produ
 |---|---|
 | Respaldo verificado de `enova`, `cafe`, `waga` y la plataforma vieja | Hecho el 13/11/2026: `/home/veritech/backups/fase9_20261113/` en el servidor y copia en `C:\GUATECH\RESPALDOS_VERITECH_VIEJO\fase9_20261113\` (suma de comprobación revisada; en cada base, las filas del respaldo son iguales a las de la base). |
 | Traslado de `enova` | Programa listo y probado (`backend/src/herramientas/migracion-enova.ts`). Ensayado con los datos reales en una base de prueba de esta computadora: todas las cifras de control coinciden. **No se ha corrido contra el taller definitivo.** |
+| Datos de ejemplo del taller de demostración | Programa listo y probado (`sembrar-demo`). |
 | Talleres de cortesía y de demostración (sin PayPal) | Listo y probado (`crear-taller-especial`). Quedan «activos», sin cobro, y el ciclo de vida no los suspende ni les manda avisos de pago. |
 | Seguridad de la página | Sondeo `scripts/seguridad/sondeo.js`: 53 comprobaciones. La página no traía HSTS ni política de contenido: ya están en `scripts/servidor/htaccess-spa.conf` y puestas en el sitio de pruebas (comprobado en navegador: entrada, registro con PayPal y pantallas internas sin errores). |
 | Carga | Prueba `CARGA=1 npx jest tests/carga`: taller con 40.000 órdenes, 6.000 equipos y 3.000 materiales. Todas las pantallas bajo 1,5 s; con 10 personas a la vez, bajo 3,3 s. Se encontró y corrigió que el listado de órdenes tardaba 1,2 s (ahora 0,05 s). La búsqueda por texto en órdenes tarda 1,3 s con 40.000 órdenes (sirve; si crece, hay que indexarla). |
@@ -40,7 +41,7 @@ Debe decir «ENSAYO (no se escribió nada)». Se revisa el informe con usted.
 
 **Paso 6 — Invitar a las personas.** Desde Configuración › Colaboradores › «Dar acceso» (envía el enlace para crear su contraseña; las contraseñas viejas no se pueden copiar). Requiere el correo (SMTP) funcionando.
 
-**Paso 7 — Taller de demostración.** `crear-taller-especial.js --tipo demo --slug demo ...` y cargar sus datos de ejemplo. (La carga de datos de ejemplo todavía no está escrita: ver «Lo que falta».)
+**Paso 7 — Taller de demostración.** `crear-taller-especial.js --tipo demo --slug demo ...` y luego `sembrar-demo.js --url <api> --taller demo --token <token>`: crea 4 clientes, 8 vehículos con su odómetro, 5 personas, bodega con existencias, 8 órdenes (3 entregadas, 3 en proceso, 2 recién recibidas) y 3 citas, todo inventado y marcado «(DEMO)». Se niega si el taller ya tiene clientes.
 
 **Paso 8 — Cambio de dirección.** Según la decisión 1: crear el nombre en el DNS del servidor (recargar la zona con `pdns_control bind-reload-now` antes de abrirlo), el sitio en Apache con `scripts/servidor/htaccess-spa.conf`, el certificado (AutoSSL) y desplegar con el mismo guion de pruebas apuntando a la carpeta definitiva. Comprobar `/health`, ingresar, y correr `node scripts/seguridad/sondeo.js <dirección> <taller>` (debe dar 53 de 53).
 
@@ -50,7 +51,7 @@ Debe decir «ENSAYO (no se escribió nada)». Se revisa el informe con usted.
 
 ## 3. Lo que falta de la Fase 9 (y por qué)
 
-- **Datos de ejemplo del taller de demostración**: el programa para cargarlos no está escrito todavía (el taller de demostración se crea vacío hoy).
+- **Datos de ejemplo con historia**: el taller de demostración nace con órdenes de hoy; los indicadores de los últimos meses (cierres, tiempos, rechazos de cotización) saldrán casi vacíos porque no se pueden fechar hacia atrás por la API.
 - **Landing y registro al estándar** (`guatech-web`): está en otro repositorio y depende de la dirección definitiva (decisión 1).
 - **Pruebas de seguridad más profundas**: lo hecho es un sondeo de lo visible desde afuera (cabeceras, archivos expuestos, rutas sin sesión, límites de intentos, inyecciones simples). No equivale a una auditoría externa; si el producto va a manejar clientes reales a escala, conviene contratar una.
 - **App móvil**: sigue sin probarse en un teléfono (ver Fase 8).

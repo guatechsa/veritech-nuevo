@@ -42,7 +42,7 @@ async function sincronizarPagos(ctx: Contexto, pagos: ProveedorPagos, e: FilaEmp
       if (r.affectedRows === 1) {
         nuevos += 1;
         if (t.estado === 'COMPLETED' && t.monto > 0) {
-          await avisarEmpresa(ctx.pool, e, correoPagoRecibido(datosTaller(e), { monto: t.monto, moneda: t.moneda, fecha: t.fecha, transaccion: t.id }), `pago:${t.id}`);
+          await avisarEmpresa(ctx.pool, e, correoPagoRecibido(datosTaller(e, ctx.entorno), { monto: t.monto, moneda: t.moneda, fecha: t.fecha, transaccion: t.id }), `pago:${t.id}`);
         }
       }
     }
@@ -90,7 +90,7 @@ export async function conciliarEmpresa(
     const e = await bloquearEmpresa(con, empresaId);
     if (!e) throw new ErrorNoEncontrado('Empresa no encontrada');
     const decision = decidirPorPaypal(e, suscripcion, ahora);
-    await aplicarDecision(con, ahora, e, decision, { origen, tipo: opciones.tipo ?? 'conciliacion', usuarioId: opciones.usuarioId, detalle: opciones.detalle ?? decision.motivo });
+    await aplicarDecision(con, ahora, ctx.entorno, e, decision, { origen, tipo: opciones.tipo ?? 'conciliacion', usuarioId: opciones.usuarioId, detalle: opciones.detalle ?? decision.motivo });
     await ejecutar(con, 'UPDATE empresas SET paypal_estado = ?, ultima_conciliacion_en = ? WHERE id = ?', [suscripcion.estado, ahora, empresaId]);
     return { empresaId, cambioEstado: decision.cambioEstado, estado: decision.estado, motivo: decision.motivo, pagosNuevos };
   });

@@ -40,8 +40,8 @@ describe('"Entrar": un correo, varios talleres', () => {
     const c = await correos();
     expect(c).toHaveLength(1);
     expect(c[0]?.destinatarios).toBe('juan@correo.test');
-    expect(c[0]?.cuerpo).toContain('https://uno.taller.test');
-    expect(c[0]?.cuerpo).toContain('https://dos.taller.test');
+    expect(c[0]?.cuerpo).toContain('https://pruebas.veritech.lat/t/uno');
+    expect(c[0]?.cuerpo).toContain('https://pruebas.veritech.lat/t/dos');
     expect(c[0]?.cuerpo).not.toContain('ajeno');
     expect(c[0]?.cuerpo).toContain('Si usted no lo solicitó');
   });
@@ -53,8 +53,8 @@ describe('"Entrar": un correo, varios talleres', () => {
     await acceso('juan@correo.test', { nombre: 'TALLER BAJA', slug: 'baja' }, 0);
     await solicitar('juan@correo.test');
     const cuerpo = (await correos())[0]?.cuerpo ?? '';
-    expect(cuerpo).toContain('bueno.taller.test');
-    for (const no of ['cerrado', 'pendiente', 'baja']) expect(cuerpo).not.toContain(`${no}.taller.test`);
+    expect(cuerpo).toContain('/t/bueno');
+    for (const no of ['cerrado', 'pendiente', 'baja']) expect(cuerpo).not.toContain(`/t/${no}`);
   });
 
   it('si todos sus talleres están cerrados, no manda nada', async () => {

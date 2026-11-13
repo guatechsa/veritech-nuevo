@@ -2,7 +2,7 @@ import { filas } from '../db/consulta';
 import { correoAccesos } from '../correos/ciclo-vida';
 import { encolarCorreo } from '../correos/cola';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
-import { urlDeTaller } from '../utils/slug';
+import { urlBaseDeEmpresa } from '../utils/direccion';
 
 const ESTADOS_VISIBLES = ['prueba', 'activa', 'pago_fallido', 'suspendida', 'cancelada_con_acceso', 'solo_exportar'];
 
@@ -13,9 +13,9 @@ const ESTADOS_VISIBLES = ['prueba', 'activa', 'pago_fallido', 'suspendida', 'can
  */
 export async function solicitarAccesos(ctx: Contexto, correo: string): Promise<void> {
   const limpio = correo.trim();
-  const accesos = await filas<{ nombre: string; subdominio: string }>(
+  const accesos = await filas<{ nombre: string; slug: string; subdominio: string }>(
     ctx.pool,
-    `SELECT e.nombre, e.subdominio
+    `SELECT e.nombre, e.slug, e.subdominio
        FROM directorio_acceso d JOIN empresas e ON e.id = d.empresa_id
       WHERE d.correo = ? AND d.activo = 1 AND e.estado IN (${ESTADOS_VISIBLES.map(() => '?').join(',')})
       ORDER BY e.nombre`,
@@ -23,6 +23,6 @@ export async function solicitarAccesos(ctx: Contexto, correo: string): Promise<v
   );
   if (accesos.length === 0) return;
   const hora = ahoraDe(ctx).toISOString().slice(0, 13);
-  const c = correoAccesos(accesos.map((a) => ({ nombreTaller: a.nombre, url: urlDeTaller(a.subdominio) })));
+  const c = correoAccesos(accesos.map((a) => ({ nombreTaller: a.nombre, url: urlBaseDeEmpresa(ctx.entorno, a) })));
   await encolarCorreo(ctx.pool, { tipo: c.tipo, destinatarios: [limpio], asunto: c.asunto, cuerpoHtml: c.cuerpoHtml, claveUnica: `accesos:${limpio.toLowerCase()}:${hora}` });
 }

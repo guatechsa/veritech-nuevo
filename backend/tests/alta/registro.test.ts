@@ -175,7 +175,7 @@ describe('registro público: paso 2 (PayPal aprobado)', () => {
     await request(e.app).post('/api/registro/confirmar').send({ pase: p.pase, suscripcion_id: 'I-E' });
     expect((await estado()).estado).toBe('creando');
     await ejecutar(e.pool, "UPDATE altas_pendientes SET estado = 'usada' WHERE slug = 'estado1'");
-    expect(await estado()).toMatchObject({ estado: 'lista', subdominio: 'estado1.taller.test', url: 'https://estado1.taller.test' });
+    expect(await estado()).toMatchObject({ estado: 'lista', subdominio: 'estado1.taller.test', url: 'https://pruebas.veritech.lat/t/estado1' });
   });
 
   it('altaAprobada (ayuda de pruebas) deja el alta lista para crear', async () => {

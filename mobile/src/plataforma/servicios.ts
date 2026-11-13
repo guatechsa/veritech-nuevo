@@ -20,7 +20,7 @@ export const VERSION_DE_LA_APP = '2.0.0';
 
 /** La dirección del servidor del taller. En pruebas se puede cambiar con `EXPO_PUBLIC_API_URL` (por ejemplo https://pruebas.veritech.lat/api/taller). */
 export function direccionDelTaller(slug: string): { api: string; origen: string } {
-  const api = process.env['EXPO_PUBLIC_API_URL'] ?? `https://${slug}.veritech.lat/api/taller`;
+  const api = process.env['EXPO_PUBLIC_API_URL'] ?? 'https://app.veritech.lat/api/taller';
   return { api, origen: new URL(api).origin };
 }
 

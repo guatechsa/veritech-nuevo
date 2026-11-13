@@ -4,7 +4,9 @@ import { POLITICA } from '../cobro/politica';
 import { Contexto, ahoraDe } from '../plataforma/contexto';
 import { crearToken, huellaDe } from '../utils/tokens';
 import { reglasIncumplidas, hashearContrasena } from '../utils/clave';
-import { exigirSlugValido, limpiarSlug, motivoSlugInvalido, subdominioDe, urlDeTaller } from '../utils/slug';
+import { Entorno } from '../config/entorno';
+import { urlBaseDeEmpresa } from '../utils/direccion';
+import { exigirSlugValido, limpiarSlug, motivoSlugInvalido, subdominioDe } from '../utils/slug';
 import { normalizarCampo } from '../utils/texto';
 
 /** Versión de los Términos y la Privacidad que se aceptan al registrarse. Si cambia en guatech.lat/legal, se sube aquí. */
@@ -137,15 +139,15 @@ export interface EstadoAltaPublico {
   url?: string;
 }
 
-function publico(alta: { id: number; estado: string; slug: string; empresa_id: number | null }, dominio: string): EstadoAltaPublico {
+function publico(alta: { id: number; estado: string; slug: string; empresa_id: number | null }, entorno: Pick<Entorno, 'DOMINIO_TALLERES' | 'TALLER_POR_ENCABEZADO' | 'URL_PANEL'>): EstadoAltaPublico {
   switch (alta.estado) {
     case 'emitida':
       return { estado: 'esperando_pago' };
     case 'aprobada':
       return { estado: 'creando', altaId: alta.id };
     case 'usada': {
-      const sub = subdominioDe(alta.slug, dominio);
-      return { estado: 'lista', subdominio: sub, url: urlDeTaller(sub) };
+      const sub = subdominioDe(alta.slug, entorno.DOMINIO_TALLERES);
+      return { estado: 'lista', subdominio: sub, url: urlBaseDeEmpresa(entorno, { slug: alta.slug, subdominio: sub }) };
     }
     case 'error':
       return { estado: 'error' };
@@ -169,7 +171,7 @@ async function altaPorPase(ctx: Contexto, pase: string) {
 export async function confirmarAlta(ctx: Contexto, datos: { pase: string; suscripcionId: string }): Promise<EstadoAltaPublico> {
   if (!/^[A-Za-z0-9_-]{3,64}$/.test(datos.suscripcionId)) throw new ErrorValidacion('La suscripción no es válida');
   const alta = await altaPorPase(ctx, datos.pase);
-  if (alta.estado !== 'emitida') return publico(alta, ctx.entorno.DOMINIO_TALLERES); // repetir el paso 2 no cambia nada
+  if (alta.estado !== 'emitida') return publico(alta, ctx.entorno); // repetir el paso 2 no cambia nada
   const ahora = ahoraDe(ctx);
   if (alta.vence_en <= ahora) throw new ErrorApp(410, 'PASE_VENCIDO', 'El registro venció. Empiece de nuevo.');
   if (!ctx.pagos) throw new ErrorApp(503, 'COBRO_APAGADO', 'El cobro con PayPal no está disponible');
@@ -190,7 +192,7 @@ export async function confirmarAlta(ctx: Contexto, datos: { pase: string; suscri
       "UPDATE altas_pendientes SET estado = 'aprobada', paypal_suscripcion_id = ?, aprobada_en = ? WHERE id = ? AND estado = 'emitida'",
       [datos.suscripcionId, ahora, alta.id]
     );
-    if (r.affectedRows !== 1) return publico((await altaPorPase(ctx, datos.pase)), ctx.entorno.DOMINIO_TALLERES);
+    if (r.affectedRows !== 1) return publico((await altaPorPase(ctx, datos.pase)), ctx.entorno);
   } catch (error) {
     if ((error as { code?: string }).code === 'ER_DUP_ENTRY') throw new ErrorConflicto('Esa suscripción ya se usó en otro registro');
     throw error;
@@ -201,6 +203,6 @@ export async function confirmarAlta(ctx: Contexto, datos: { pase: string; suscri
 export async function estadoAlta(ctx: Contexto, pase: string): Promise<EstadoAltaPublico> {
   const alta = await altaPorPase(ctx, pase);
   if (alta.estado === 'emitida' && alta.vence_en <= ahoraDe(ctx)) return { estado: 'vencida' };
-  const e = publico(alta, ctx.entorno.DOMINIO_TALLERES);
+  const e = publico(alta, ctx.entorno);
   return { estado: e.estado, ...(e.subdominio ? { subdominio: e.subdominio, url: e.url } : {}) };
 }

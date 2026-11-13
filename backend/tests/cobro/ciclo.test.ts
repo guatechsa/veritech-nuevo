@@ -243,10 +243,10 @@ describe('prueba de 30 días y bienvenida', () => {
     const r = await barrerCicloDeVida(e.ctx);
     await barrerCicloDeVida(e.ctx);
     expect(r.bienvenidas).toBe(1);
-    expect(consultado).toBe('https://bienvenido.taller.test');
+    expect(consultado).toBe('https://pruebas.veritech.lat/t/bienvenido');
     const c = await correos('bienvenida');
     expect(c).toHaveLength(1);
-    expect(c[0]?.cuerpo).toContain('https://bienvenido.taller.test');
+    expect(c[0]?.cuerpo).toContain('https://pruebas.veritech.lat/t/bienvenido');
     expect(c[0]?.cuerpo).toContain('30 días de prueba');
     expect(c[0]?.cuerpo).toContain('&lt;B&gt;MALO&lt;/B&gt;'); // el nombre del taller viene escapado
     expect(c[0]?.cuerpo).not.toContain('<B>MALO');

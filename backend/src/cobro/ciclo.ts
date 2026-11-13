@@ -80,7 +80,7 @@ export async function barrerCicloDeVida(ctx: Contexto): Promise<ResumenCiclo> {
           if (!e) return;
           const decision = decidirPorFechas(e, ahora);
           if (!decision) return;
-          await aplicarDecision(con, ahora, e, decision, { origen: 'sistema', tipo: 'calendario', detalle: decision.motivo });
+          await aplicarDecision(con, ahora, ctx.entorno, e, decision, { origen: 'sistema', tipo: 'calendario', detalle: decision.motivo });
           resumen.transiciones += 1;
           if (decision.estado === 'cerrada') cierre.fila = e;
         });
@@ -97,11 +97,11 @@ export async function barrerCicloDeVida(ctx: Contexto): Promise<ResumenCiclo> {
 
       // 3c. Bienvenida: solo cuando el subdominio ya responde.
       if (inicial.provisionada_en && !inicial.subdominio_listo_en && ctx.verificarSubdominio) {
-        const listo = await ctx.verificarSubdominio(datosTaller(actual).urlTaller);
+        const listo = await ctx.verificarSubdominio(datosTaller(actual, ctx.entorno).urlTaller);
         if (listo) {
           await transaccion(ctx.pool, async (con) => {
             await ejecutar(con, 'UPDATE empresas SET subdominio_listo_en = ? WHERE id = ?', [ahora, actual.id]);
-            await avisarEmpresa(con, actual, correoBienvenida(datosTaller(actual), POLITICA.diasPrueba), `bienvenida:${actual.id}`);
+            await avisarEmpresa(con, actual, correoBienvenida(datosTaller(actual, ctx.entorno), POLITICA.diasPrueba), `bienvenida:${actual.id}`);
           });
           resumen.bienvenidas += 1;
         }
@@ -115,7 +115,7 @@ export async function barrerCicloDeVida(ctx: Contexto): Promise<ResumenCiclo> {
 
 async function enviarAvisosDeFecha(ctx: Contexto, e: FilaEmpresa, ahora: Date): Promise<number> {
   if (e.cobro_por_contrato || !e.contacto_correo) return 0;
-  const dt = datosTaller(e);
+  const dt = datosTaller(e, ctx.entorno);
   let enviados = 0;
   const marcar = async (correo: Parameters<typeof avisarEmpresa>[2], clave: string): Promise<void> => {
     const antes = await filas<{ n: number }>(ctx.pool, 'SELECT COUNT(*) AS n FROM correos_salida WHERE clave_unica = ?', [clave]);

@@ -7,7 +7,7 @@ import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { consumirTokenAcceso } from '../plataforma/soporte';
 import { escaparHtml } from '../utils/html';
 import { hashDeRelleno, hashearContrasena, reglasIncumplidas, verificarContrasena } from '../utils/clave';
-import { urlDeTaller } from '../utils/slug';
+import { urlBaseDeEmpresa } from '../utils/direccion';
 import { crearToken, huellaDe } from '../utils/tokens';
 import { EmpresaDePeticion, ESTADOS_QUE_TRABAJAN } from './contexto';
 import { Pool } from 'mysql2/promise';
@@ -34,8 +34,7 @@ function sumarMs(fecha: Date, ms: number): Date {
 
 /** La dirección base del taller (para los enlaces de los correos). En pruebas sin dirección propia, cuelga del sitio de pruebas. */
 export function urlBaseDeTaller(ctx: Contexto, empresa: Pick<EmpresaDePeticion, 'slug' | 'subdominio'>): string {
-  if (ctx.entorno.TALLER_POR_ENCABEZADO) return `${new URL(ctx.entorno.URL_PANEL).origin}/t/${empresa.slug}`;
-  return urlDeTaller(empresa.subdominio);
+  return urlBaseDeEmpresa(ctx.entorno, empresa);
 }
 
 async function bitacora(pool: Pool, usuarioId: number | null, accion: string, motivo: string | null, ip: string): Promise<void> {

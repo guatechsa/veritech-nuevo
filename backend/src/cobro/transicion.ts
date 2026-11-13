@@ -12,7 +12,8 @@ import {
   DatosTaller,
 } from '../correos/ciclo-vida';
 import { Contexto } from '../plataforma/contexto';
-import { urlDeTaller } from '../utils/slug';
+import { Entorno } from '../config/entorno';
+import { urlBaseDeEmpresa } from '../utils/direccion';
 import { Decision, EstadoEmpresa, SituacionEmpresa } from './estado';
 import { MS_DIA, POLITICA } from './politica';
 
@@ -35,8 +36,8 @@ export interface FilaEmpresa extends SituacionEmpresa {
 export const COLUMNAS_EMPRESA = `id, nombre, slug, subdominio, nombre_bd, estado, gracia_hasta, acceso_hasta, prueba_hasta, proximo_cobro_en,
   exportable_hasta, borrado_programado_en, estado_desde, suspension_origen, contacto_nombre, contacto_correo, cobro_por_contrato, es_demo, paypal_suscripcion_id`;
 
-export function datosTaller(e: Pick<FilaEmpresa, 'nombre' | 'contacto_nombre' | 'subdominio'>): DatosTaller {
-  return { nombreTaller: e.nombre, contacto: e.contacto_nombre ?? e.nombre, urlTaller: urlDeTaller(e.subdominio) };
+export function datosTaller(e: Pick<FilaEmpresa, 'nombre' | 'contacto_nombre' | 'subdominio' | 'slug'>, entorno: Pick<Entorno, 'TALLER_POR_ENCABEZADO' | 'URL_PANEL'>): DatosTaller {
+  return { nombreTaller: e.nombre, contacto: e.contacto_nombre ?? e.nombre, urlTaller: urlBaseDeEmpresa(entorno, e) };
 }
 
 /** Pone un correo al contacto de la empresa (si tiene correo). Con clave única: nunca sale dos veces. */
@@ -54,6 +55,7 @@ const ESTADOS_CON_SERVICIO: EstadoEmpresa[] = ['prueba', 'activa'];
 export async function aplicarDecision(
   con: PoolConnection,
   ahora: Date,
+  entorno: Pick<Entorno, 'TALLER_POR_ENCABEZADO' | 'URL_PANEL'>,
   e: FilaEmpresa,
   d: Decision,
   evento: { origen: OrigenEvento; tipo: string; usuarioId?: number | null; detalle?: string }
@@ -75,7 +77,7 @@ export async function aplicarDecision(
     [e.id, evento.tipo, e.estado, d.estado, evento.origen, evento.usuarioId ?? null, (evento.detalle ?? d.motivo).slice(0, 500), ahora]
   );
 
-  const dt = datosTaller(e);
+  const dt = datosTaller(e, entorno);
   const epoch = Math.floor(ahora.getTime() / 1000);
   const eraProblema = e.estado === 'pago_fallido' || (e.estado === 'suspendida' && e.suspension_origen === 'pago') || e.estado === 'cancelada_con_acceso';
 

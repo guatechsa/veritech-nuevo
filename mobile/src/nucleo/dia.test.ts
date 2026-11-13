@@ -185,6 +185,7 @@ describe('las acciones', () => {
     sinSenal(m);
     await m.acciones.responderItem(21, 31, { semaforo: 'rojo' }, 'Punto 31');
     await m.acciones.completarChecklist(21, { contador_id: 41, valor: 1500 }, 'Revisión de frenos');
+    await esperarEnvio(m); // que termine el envío en segundo plano (sin señal) antes de cambiar las respuestas del servidor
     m.servidor.vaciar();
     m.servidor.en('PATCH', '/checklists/21/respuestas/31', mal(400, 'VALIDACION', 'Elija el motivo'));
     m.servidor.en('POST', '/checklists/21/completar', ok({}));

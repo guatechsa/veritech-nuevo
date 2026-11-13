@@ -44,6 +44,29 @@ export function direccionesDeArchivos(dato: unknown, acumulado: Set<string> = ne
   return [...acumulado];
 }
 
+export const MAXIMO_MATERIALES = 3000;
+
+/** Listas que la app usa sin señal: materiales para pedir, estados para entregar, tipos para recibir y plantillas de checklist para iniciar. */
+async function catalogosDeLaApp(t: TallerReq, p: Set<string>): Promise<Record<string, unknown>> {
+  const c: Record<string, unknown> = {};
+  if (p.has('solicitudes.crear')) {
+    c['materiales'] = await filas(t.pool, 'SELECT m.id, m.codigo, m.nombre, u.codigo AS unidad FROM materiales m JOIN unidades u ON u.id = m.unidad_id WHERE m.activo = 1 ORDER BY m.nombre, m.id LIMIT ?', [MAXIMO_MATERIALES]);
+  }
+  if (p.has('ordenes.cambiar_estado') || p.has('ordenes.crear')) {
+    c['estados_orden'] = await filas(t.pool, 'SELECT id, codigo, nombre, es_inicial, es_terminal, es_cancelado, sale_equipo FROM estados_orden WHERE activo = 1 ORDER BY orden, id');
+  }
+  if (p.has('ordenes.crear')) {
+    c['tipos_orden'] = await filas(t.pool, 'SELECT id, codigo, nombre, es_default, es_pedido_especial FROM tipos_orden WHERE activo = 1 ORDER BY es_default DESC, nombre');
+  }
+  if (p.has('checklists.llenar')) {
+    c['checklist_tipos'] = await filas(
+      t.pool,
+      'SELECT ct.id, ct.nombre, e.nombre AS etapa, e.requiere_orden, ct.requiere_firma_cliente FROM checklist_tipos ct JOIN etapas e ON e.id = ct.etapa_id WHERE ct.activo = 1 ORDER BY e.orden, ct.nombre'
+    );
+  }
+  return c;
+}
+
 export async function miDia(ctx: Contexto, t: TallerReq, s: SesionDeTaller) {
   const p = s.permisos;
   const hoy = hoyDelTaller(ctx, t);
@@ -74,7 +97,19 @@ export async function miDia(ctx: Contexto, t: TallerReq, s: SesionDeTaller) {
   // Las órdenes abiertas (recepción y supervisión): un resumen para ubicar a qué orden va cada cosa.
   if (p.has('ordenes.ver') && p.has('ordenes.crear')) {
     const r = await conTolerancia('órdenes abiertas', () => listarOrdenes(t, SIN_DINERO, { abiertas: true, pagina: 1, porPagina: 40 }), incompleto);
-    if (r) salida['ordenes_abiertas'] = r.registros;
+    if (r) {
+      salida['ordenes_abiertas'] = r.registros;
+      // La recepción trabaja sobre las órdenes abiertas del taller: baja su detalle y sus checklists (para recibir y entregar con fotos y firma).
+      for (const x of r.registros) ordenIds.add(Number((x as unknown as Record<string, unknown>)['id']));
+    }
+  }
+  // Citas de hoy y mañana (antes de las fichas: los equipos de las citas también se bajan para ver su contador al recibirlos).
+  if (p.has('citas.ver')) {
+    const c = await conTolerancia('citas', () => listarCitas(ctx, t, { desde: hoy, hasta: addDias(hoy, 1), estado: 'programada', pagina: 1, porPagina: 50 }), incompleto);
+    if (c) {
+      salida['citas'] = c.registros;
+      for (const x of c.registros) equipoIds.add(Number((x as unknown as Record<string, unknown>)['equipo_id']));
+    }
   }
 
   // El detalle de cada orden de mi día y sus checklists por llenar.
@@ -122,11 +157,9 @@ export async function miDia(ctx: Contexto, t: TallerReq, s: SesionDeTaller) {
     salida['solicitudes'] = solicitudes;
   }
 
-  // Citas de hoy y mañana.
-  if (p.has('citas.ver')) {
-    const c = await conTolerancia('citas', () => listarCitas(ctx, t, { desde: hoy, hasta: addDias(hoy, 1), estado: 'programada', pagina: 1, porPagina: 50 }), incompleto);
-    if (c) salida['citas'] = c.registros;
-  }
+  // Catálogos para trabajar sin señal (solo lo que sus permisos permiten usar; nunca costos ni precios).
+  const catalogos = await conTolerancia('catálogos', () => catalogosDeLaApp(t, p), incompleto);
+  salida['catalogos'] = catalogos ?? {};
 
   salida['archivos'] = direccionesDeArchivos(salida);
   salida['incompleto'] = incompleto;

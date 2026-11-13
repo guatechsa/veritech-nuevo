@@ -19,6 +19,7 @@
       "expo-sqlite",
       ["expo-image-picker", { "cameraPermission": "VERI-TECH usa la cámara para tomar las fotos de los trabajos y de los checklists.", "microphonePermission": false }],
       ["expo-camera", { "cameraPermission": "VERI-TECH usa la cámara para escanear el código QR de un equipo.", "recordAudioAndroid": false }],
+      ["expo-local-authentication", { "faceIDPermission": "VERI-TECH usa su cara o su huella para confirmar que es usted al volver a la app." }],
       ["expo-notifications", { "color": "#4997D0" }]
     ],
     "experiments": { "typedRoutes": false }

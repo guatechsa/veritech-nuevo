@@ -25,6 +25,7 @@ export function problemasParaCompletar(c: Checklist, lectura: number | null): st
     if (necesitaFoto(r) && totalDeFotos(r) === 0) problemas.push(`El punto «${r.descripcion}» necesita al menos una foto.`);
   }
   if (c.exige_lectura_contador && lectura === null) problemas.push('Escriba la lectura del contador.');
+  if (c.requiere_firma_cliente && !c.firma && !c.firma_local) problemas.push('Falta la firma del cliente.');
   return problemas;
 }
 

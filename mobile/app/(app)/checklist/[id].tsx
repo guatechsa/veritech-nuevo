@@ -4,7 +4,8 @@ import { ScrollView, Text, View } from 'react-native';
 import { RespuestaDeChecklist } from '../../../src/nucleo/dia';
 import { numeroDe } from '../../../src/nucleo/fechas';
 import { fotosPorSubir, necesitaFoto, problemasParaCompletar, puedeAgregarFoto, totalDeFotos } from '../../../src/nucleo/reglas';
-import { useServicios } from '../../../src/plataforma/contexto';
+import { useEstadoDeEnvio, useServicios } from '../../../src/plataforma/contexto';
+import { FirmaModal } from '../../../src/ui/FirmaPad';
 import { tomarFoto, useDia } from '../../../src/ui/hooks';
 import { Boton, Campo, color, estilos, Mensaje, SEMAFORO, Tarjeta, Texto, Titulo } from '../../../src/ui/tema';
 
@@ -16,6 +17,10 @@ export default function Checklist() {
   const { datos } = useDia();
   const [lectura, setLectura] = useState('');
   const [mensaje, setMensaje] = useState('');
+  const [firmando, setFirmando] = useState(false);
+  const [cotizando, setCotizando] = useState(false);
+  const [resultado, setResultado] = useState<{ texto: string; tipo: 'ok' | 'error' } | null>(null);
+  const envio = useEstadoDeEnvio();
   const c = datos?.checklists.find((x) => x.id === Number(id));
   if (!c || !datos) return <View style={estilos.pantalla}><Mensaje texto="No encontramos ese checklist en su día descargado." tipo="aviso" /></View>;
 
@@ -35,6 +40,21 @@ export default function Checklist() {
       await s.acciones.agregarFotoDeItem(c.id, x, uri);
     } catch (e) {
       setMensaje(e instanceof Error ? e.message : 'No se pudo guardar la foto.');
+    }
+  };
+  const firmante = c.firma_local?.nombre ?? c.firma?.firmante_nombre ?? null;
+  const hayRojos = c.respuestas.some((x) => x.semaforo === 'rojo');
+  const puedeCotizar = s.sesion.permisos.includes('cotizaciones.crear') && hayRojos && c.estado === 'completado';
+  const cotizar = async (): Promise<void> => {
+    setCotizando(true);
+    setResultado(null);
+    try {
+      const r = await s.enLinea.cotizarRojos(c.id);
+      setResultado({ texto: `Cotización ${r.numero ?? `#${r.id}`} creada con los puntos en rojo. Complétela y envíela al cliente desde el sistema.`, tipo: 'ok' });
+    } catch (e) {
+      setResultado({ texto: e instanceof Error ? e.message : 'No se pudo crear la cotización.', tipo: 'error' });
+    } finally {
+      setCotizando(false);
     }
   };
   const completar = async (): Promise<void> => {
@@ -85,6 +105,33 @@ export default function Checklist() {
           )}
         </Tarjeta>
       ))}
+      {c.requiere_firma_cliente && (
+        <Tarjeta>
+          <Texto negrita>Firma del cliente</Texto>
+          {firmante ? <Texto>Firmó: {firmante}{c.firma_local ? ' (por enviar)' : ''}</Texto> : <Texto suave>Este checklist lleva la firma del cliente.</Texto>}
+          {!soloLectura && <Boton texto={firmante ? 'Firmar de nuevo' : 'Pedir la firma del cliente'} variante={firmante ? 'borde' : 'primario'} alPulsar={() => setFirmando(true)} />}
+        </Tarjeta>
+      )}
+      {firmando && (
+        <FirmaModal
+          visible
+          titulo={`Firma: ${c.tipo}`}
+          alCancelar={() => setFirmando(false)}
+          alFirmar={(nombre, imagen) => {
+            setFirmando(false);
+            void s.acciones.firmarChecklist(c.id, nombre, imagen).catch((e: unknown) => setMensaje(e instanceof Error ? e.message : 'No se pudo guardar la firma.'));
+          }}
+        />
+      )}
+      {puedeCotizar && (
+        <Tarjeta>
+          <Texto negrita>Puntos en rojo</Texto>
+          <Texto suave>Se puede cotizar lo que está mal para enviarlo al cliente. Necesita señal.</Texto>
+          {(envio?.pendientes ?? 0) > 0 && <Mensaje texto="Espere a que se envíe todo lo pendiente (la cotización se arma con lo que ya está en el servidor)." tipo="aviso" />}
+          <Boton texto="Cotizar los puntos en rojo" variante="borde" cargando={cotizando} deshabilitado={(envio?.pendientes ?? 0) > 0} alPulsar={() => void cotizar()} />
+          {resultado && <Mensaje texto={resultado.texto} tipo={resultado.tipo} />}
+        </Tarjeta>
+      )}
       <Mensaje texto={mensaje} tipo="error" />
       {!soloLectura && (
         <Tarjeta>

@@ -3,6 +3,7 @@ import { Alert, ScrollView, Switch, View } from 'react-native';
 import { Cambio } from '../../src/nucleo/cola';
 import { HayPendientes } from '../../src/nucleo/errores';
 import { useApp, useEstadoDeEnvio, useServicios } from '../../src/plataforma/contexto';
+import { guardarCandadoActivo, useCandado } from '../../src/plataforma/candado';
 import { VERSION_DE_LA_APP } from '../../src/plataforma/servicios';
 import { Boton, estilos, Mensaje, Tarjeta, Texto, Titulo } from '../../src/ui/tema';
 
@@ -20,6 +21,9 @@ export default function Cuenta() {
   const [cambios, setCambios] = useState<Cambio[]>([]);
   const [avisos, setAvisos] = useState<PreferenciaDeAviso[]>([]);
   const [error, setError] = useState('');
+  const candado = useCandado();
+  const [candadoActivo, setCandadoActivo] = useState(candado.activo);
+  const [sinProteccion, setSinProteccion] = useState(false);
 
   useEffect(() => {
     const leer = (): void => void s.cola.todos().then(setCambios);
@@ -37,6 +41,18 @@ export default function Cuenta() {
       setAvisos((x) => x.map((y) => (y.tipo === a.tipo ? { ...y, activo } : y)));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cambiar el aviso (hace falta señal).');
+    }
+  };
+
+  const cambiarCandado = async (activo: boolean): Promise<void> => {
+    setError('');
+    try {
+      const hecho = await candado.cambiarActivo(activo);
+      setSinProteccion(candado.sinProteccion);
+      if (hecho) await guardarCandadoActivo(activo);
+      setCandadoActivo(candado.activo);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo cambiar el bloqueo.');
     }
   };
 
@@ -78,6 +94,15 @@ export default function Cuenta() {
           </View>
         ))}
         {cambios.length > 0 && <Boton texto="Enviar ahora" variante="borde" alPulsar={() => void s.sincronizador.sincronizar()} />}
+      </Tarjeta>
+
+      <Tarjeta>
+        <Texto negrita>Bloqueo de la app</Texto>
+        <View style={[estilos.fila, { justifyContent: 'space-between', flexWrap: 'nowrap' }]}>
+          <View style={{ flex: 1 }}><Texto>Pedir huella, cara o PIN del teléfono al volver a la app después de 5 minutos</Texto></View>
+          <Switch value={candadoActivo} onValueChange={(v) => void cambiarCandado(v)} accessibilityLabel="Bloqueo de la app" />
+        </View>
+        {sinProteccion && <Mensaje texto="Su teléfono no tiene bloqueo de pantalla (PIN, patrón o huella). Póngalo en los ajustes del teléfono y luego active esta opción." tipo="aviso" />}
       </Tarjeta>
 
       {avisos.length > 0 && (

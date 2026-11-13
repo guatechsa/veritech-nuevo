@@ -36,11 +36,15 @@ export interface OpcionesDelSincronizador {
   /** Se llama con cada cambio ya aplicado en el servidor (para actualizar lo guardado en el teléfono con la respuesta real). */
   alAplicar?: (cambio: Cambio, respuesta: unknown) => Promise<void>;
   alRechazar?: (cambio: Cambio, motivo: string) => Promise<void>;
+  /** Al terminar una tanda en la que se envió o se rechazó algo: la app vuelve a bajar el día (así lo que ya está en el servidor reemplaza a lo que se hizo en el teléfono). Se lanza aparte: no demora el envío. */
+  alTerminar?: (resultado: ResultadoDeSincronizacion) => Promise<void>;
   maximoDeIntentos?: number;
 }
 
 export class Sincronizador {
   private enCurso: Promise<ResultadoDeSincronizacion> | null = null;
+  /** Alguien pidió enviar mientras ya se estaba enviando: hay que pasar otra vez (un cambio nuevo no espera al siguiente aviso del reloj). */
+  private otraVez = false;
   private red: EstadoDeSincronizacion['red'] = 'ok';
   private sesionVencida = false;
   private ultima: string | null = null;
@@ -78,14 +82,33 @@ export class Sincronizador {
     this.avisar();
   }
 
-  /** Envía lo pendiente. Si ya hay un envío en curso, devuelve ESE mismo (no empieza otro). */
+  /** Envía lo pendiente. Si ya hay un envío en curso, no empieza otro en paralelo: pide una pasada más al terminar (así lo que se acaba de hacer también sale). */
   sincronizar(): Promise<ResultadoDeSincronizacion> {
-    this.enCurso ??= this.enviar().finally(() => {
-      this.enCurso = null;
-      this.avisar();
-    });
+    if (this.enCurso) {
+      this.otraVez = true;
+    } else {
+      this.enCurso = this.correr().then((r) => {
+        if (r.enviados + r.rechazados > 0 && this.o.alTerminar) void this.o.alTerminar(r).catch(() => undefined);
+        return r;
+      }).finally(() => {
+        this.enCurso = null;
+        this.avisar();
+      });
+    }
     this.avisar();
     return this.enCurso;
+  }
+
+  private async correr(): Promise<ResultadoDeSincronizacion> {
+    let total = await this.enviar();
+    // Solo se repite si la pasada llegó hasta el final (sin señal o sin sesión no tiene caso insistir).
+    while (this.otraVez && total.detenidoPor === null) {
+      this.otraVez = false;
+      const x = await this.enviar();
+      total = { enviados: total.enviados + x.enviados, rechazados: total.rechazados + x.rechazados, detenidoPor: x.detenidoPor };
+    }
+    this.otraVez = false;
+    return total;
   }
 
   private async enviar(): Promise<ResultadoDeSincronizacion> {

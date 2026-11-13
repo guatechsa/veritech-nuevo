@@ -7,6 +7,7 @@ import { aplicarCambio } from '../nucleo/cambios-locales';
 import { ClienteApi } from '../nucleo/cliente';
 import { Cola } from '../nucleo/cola';
 import { Dia } from '../nucleo/dia';
+import { EnLinea } from '../nucleo/en-linea';
 import { Fotos } from '../nucleo/fotos';
 import { FetchLike } from '../nucleo/http';
 import { GestorDeSesion } from '../nucleo/sesion';
@@ -59,13 +60,16 @@ export interface Servicios extends Base {
   sincronizador: Sincronizador;
   dia: Dia;
   acciones: Acciones;
+  /** Lo que solo se puede hacer con señal (recibir una cita, iniciar un checklist, cotizar). */
+  enLinea: EnLinea;
 }
 
 /** Lo que pertenece a ESTA persona en ESTE taller: su cola, su día y sus acciones (nada se comparte con otra persona del mismo teléfono). */
 export function crearDeSesion(base: Base, sesion: Sesion): Servicios {
   const cola = new Cola(almacenSqlite, sesion.espacio, () => Crypto.randomUUID(), reloj);
-  const sincronizador = new Sincronizador({ cola, cliente: base.cliente, archivos: base.archivos, reloj });
   const dia = new Dia({ almacen: almacenSqlite, espacio: sesion.espacio, cliente: base.cliente, archivos: base.archivos, cola, reloj, aplicarCambio });
+  // Cuando el servidor ya recibió lo hecho en el teléfono, se vuelve a bajar el día: así un checklist completado deja de verse «por llenar».
+  const sincronizador = new Sincronizador({ cola, cliente: base.cliente, archivos: base.archivos, reloj, alTerminar: async () => void (await dia.descargar()) });
   const fotos = new Fotos({ almacen: almacenSqlite, archivos: base.archivos, imagenes, espacio: sesion.espacio });
-  return { ...base, sesion, cola, sincronizador, dia, acciones: new Acciones({ cola, sincronizador, fotos }) };
+  return { ...base, sesion, cola, sincronizador, dia, acciones: new Acciones({ cola, sincronizador, fotos }), enLinea: new EnLinea({ cliente: base.cliente, dia }) };
 }

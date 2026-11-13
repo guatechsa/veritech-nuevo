@@ -77,6 +77,14 @@ export default function Trabajo() {
         {(t.fotos_locales?.length ?? 0) > 0 && <Texto suave>{t.fotos_locales!.length} por enviar (se envían solas).</Texto>}
       </Tarjeta>
 
+      {s.sesion.permisos.includes('solicitudes.crear') && (
+        <Tarjeta>
+          <Texto negrita>Material</Texto>
+          <Texto suave>Pida a la bodega lo que necesita para esta orden. Funciona sin señal.</Texto>
+          <Boton texto="Pedir material a la bodega" variante="borde" alPulsar={() => r.push(`/material/${t.orden_id}`)} />
+        </Tarjeta>
+      )}
+
       {checklists.length > 0 && (
         <Tarjeta>
           <Texto negrita>Checklists de esta orden</Texto>

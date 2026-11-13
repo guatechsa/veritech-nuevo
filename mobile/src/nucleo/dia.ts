@@ -25,6 +25,48 @@ export interface RespuestaDeChecklist {
   fotos_locales?: Array<{ uri: string }>;
 }
 
+export interface EstadoDeOrden {
+  id: number;
+  codigo: string;
+  nombre: string;
+  es_inicial: number;
+  es_terminal: number;
+  es_cancelado: number;
+  /** 1 = en este estado el equipo ya salió del taller (es el estado de «entregar»). */
+  sale_equipo: number;
+}
+
+/** Listas que se bajan con «Mi día» para trabajar sin señal (solo las que los permisos de la persona permiten usar). */
+export interface Catalogos {
+  materiales?: Array<{ id: number; codigo: string; nombre: string; unidad: string }>;
+  estados_orden?: EstadoDeOrden[];
+  tipos_orden?: Array<{ id: number; codigo: string; nombre: string; es_default: number; es_pedido_especial: number }>;
+  checklist_tipos?: Array<{ id: number; nombre: string; etapa: string; requiere_orden: number; requiere_firma_cliente: number }>;
+}
+
+/** Una solicitud de material tal como la baja el servidor (con la existencia de cada bodega de la sucursal, para elegir de dónde despachar). */
+export interface SolicitudDeMaterial {
+  id: number;
+  numero: string;
+  orden_id: number;
+  orden: string;
+  sucursal: string;
+  solicitante: string | null;
+  estado: string;
+  lineas: Array<{
+    id: number;
+    material_id: number;
+    codigo: string;
+    nombre: string;
+    unidad: string;
+    cantidad_solicitada: number;
+    cantidad_despachada: number;
+    pendiente: number;
+    por_bodega: Array<{ bodega_id: number; bodega: string; cantidad: number }>;
+  }>;
+  [clave: string]: unknown;
+}
+
 export interface Checklist {
   id: number;
   tipo: string;
@@ -33,6 +75,10 @@ export interface Checklist {
   estado: 'pendiente' | 'en_progreso' | 'completado';
   exige_lectura_contador: boolean;
   requiere_firma_cliente: boolean;
+  /** La firma que ya está en el servidor. */
+  firma?: { firmante_nombre: string } | null;
+  /** La firma tomada en el teléfono que todavía no se envió (la pone la app). */
+  firma_local?: { nombre: string };
   total: number;
   respondidas: number;
   respuestas: RespuestaDeChecklist[];
@@ -59,7 +105,8 @@ export interface MiDia {
   ordenes: Array<{ id: number; numero: string; equipo_id?: number; lineas?: Array<{ id: number; estado: string; [clave: string]: unknown }>; [clave: string]: unknown }>;
   checklists: Checklist[];
   equipos: Array<{ id: number; contadores?: Array<{ id: number; valor_actual: number | null; [clave: string]: unknown }>; [clave: string]: unknown }>;
-  solicitudes?: Array<{ id: number; [clave: string]: unknown }>;
+  solicitudes?: SolicitudDeMaterial[];
+  catalogos?: Catalogos;
   citas?: Array<{ id: number; [clave: string]: unknown }>;
   ordenes_abiertas?: Array<{ id: number; [clave: string]: unknown }>;
   equipos_asignados?: number[];
@@ -90,6 +137,14 @@ export class Dia {
     private readonly o: { almacen: Almacen; espacio: Espacio; cliente: ClienteApi; archivos: Archivos; cola: Cola; reloj: Reloj; aplicarCambio: (d: MiDia, c: Cambio) => MiDia }
   ) {}
 
+  private oyentes = new Set<() => void>();
+
+  /** Avisa cuando el día se vuelve a guardar (para que las pantallas se actualicen solas). */
+  escuchar(f: () => void): () => void {
+    this.oyentes.add(f);
+    return () => this.oyentes.delete(f);
+  }
+
   private clave(): string {
     return clavesDe(this.o.espacio, 'dia');
   }
@@ -112,6 +167,7 @@ export class Dia {
       }
     }
     await this.o.almacen.escribir(this.clave(), { datos, archivos, faltan } satisfies Guardado);
+    for (const f of this.oyentes) f();
     return { descargado_en: datos.descargado_en, fotos: nuevas, fotosFaltan: faltan.length, partesIncompletas: datos.incompleto };
   }
 

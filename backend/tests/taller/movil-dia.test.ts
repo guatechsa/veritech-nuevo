@@ -92,12 +92,35 @@ describe('«Descargar mi día»', () => {
     expect((recepcion['citas'] as unknown[]).length).toBe(1);
     expect((recepcion['ordenes_abiertas'] as Array<{ id: number }>).map((x) => x.id)).toEqual([m.orden]);
     expect(recepcion['solicitudes']).toBeUndefined();
+    // La recepción también baja el detalle de las órdenes abiertas y el equipo de cada cita (para recibirlo con su contador).
+    expect((recepcion['ordenes'] as Array<{ id: number }>).map((x) => x.id)).toEqual([m.orden]);
+    expect((recepcion['equipos'] as Array<{ id: number }>).map((x) => x.id)).toEqual([m.equipo]);
 
     const tecnico = await m.t.usuario('tecnico', 'tec@taller.test');
     await m.t.sql((c) => c.query('INSERT INTO asignaciones_operador (colaborador_id, equipo_id, desde) VALUES (?, ?, ?)', [tecnico.colaboradorId, m.equipo, dia(-5)]));
     const operador = await miDia(m.t.api(await tecnico.token()));
     expect(operador['equipos_asignados']).toEqual([m.equipo]);
     expect(operador.equipos.map((x) => x.id)).toEqual([m.equipo]);
+  });
+
+  it('los catálogos de la app salen según los permisos: materiales a quien pide, estados a quien entrega, plantillas a quien llena; sin dinero', async () => {
+    const m = await mundoDelDia();
+    const op = (await m.api.get('/inventario-opciones')).body.data as { unidades: Array<{ id: number; codigo: string }>; partes: Array<{ id: number; clasificacion: string }> };
+    const material = await m.api.post('/materiales').send({ codigo: 'FIL-1', nombre: 'Filtro de aceite', parte_id: op.partes.find((p) => p.clasificacion.startsWith('99-'))!.id, unidad_id: op.unidades[0]!.id });
+    expect(material.status).toBe(201);
+    const recepcion = await miDia(m.t.api(await (await m.t.usuario('recepcionista', 'rec2@taller.test')).token()));
+    const cat = recepcion['catalogos'] as Record<string, Array<Record<string, unknown>>>;
+    expect(cat['estados_orden']!.length).toBeGreaterThan(1);
+    expect(cat['estados_orden']![0]).toHaveProperty('sale_equipo'); // para saber cuál estado es «entregar el equipo»
+    expect(cat['tipos_orden']!.length).toBeGreaterThan(0);
+    expect(JSON.stringify(cat)).not.toMatch(/costo|precio|tarifa/);
+    const todos = await miDia(m.api);
+    const cat2 = todos['catalogos'] as Record<string, Array<Record<string, unknown>>>;
+    expect(cat2['materiales']!.map((x) => x['codigo'])).toContain('FIL-1');
+    expect(Object.keys(cat2['materiales']![0]!).sort()).toEqual(['codigo', 'id', 'nombre', 'unidad']);
+    expect(cat2['checklist_tipos']!.some((x) => String(x['nombre']).toUpperCase() === 'REVISION DE FRENOS')).toBe(true);
+    // El visualizador no pide, no entrega y no llena: no baja ningún catálogo.
+    expect((await miDia(m.t.api(await (await m.t.usuario('visualizador', 'vis2@taller.test')).token())))['catalogos']).toEqual({});
   });
 
   it('junta las direcciones de las fotos y los archivos para que la app los baje al teléfono', () => {

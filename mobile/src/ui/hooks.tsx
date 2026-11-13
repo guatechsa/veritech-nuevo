@@ -28,7 +28,12 @@ export function useDia(): VistaDelDia {
   }, [s]);
   useEffect(() => {
     void leer();
-    return s.cola.escuchar(() => void leer());
+    const quitarCola = s.cola.escuchar(() => void leer());
+    const quitarDia = s.dia.escuchar(() => void leer());
+    return () => {
+      quitarCola();
+      quitarDia();
+    };
   }, [s, leer]);
   const descargar = useCallback(async () => {
     setCargando(true);

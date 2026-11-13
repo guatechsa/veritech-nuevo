@@ -89,7 +89,27 @@ export class Acciones {
     return this.poner({ titulo: 'Solicitud de material', tipo: 'solicitud_material', metodo: 'POST', ruta: '/solicitudes', cuerpo: { orden_id: ordenId, lineas, ...(notas ? { notas } : {}) }, contexto: { ordenId } });
   }
 
-  despachar(solicitudId: number, items: Array<{ linea_id: number; bodega_id: number; cantidad: number }>): Promise<Cambio> {
-    return this.poner({ titulo: 'Despacho de material', tipo: 'despacho', metodo: 'POST', ruta: `/solicitudes/${solicitudId}/despachar`, cuerpo: { items }, contexto: { solicitudId } });
+  despachar(solicitudId: number, items: Array<{ linea_id: number; bodega_id: number; cantidad: number }>, numero?: string): Promise<Cambio> {
+    return this.poner({ titulo: `Despacho de material${numero ? ` ${numero}` : ''}`, tipo: 'despacho', metodo: 'POST', ruta: `/solicitudes/${solicitudId}/despachar`, cuerpo: { items }, contexto: { solicitudId, items } });
+  }
+
+  /** La firma del cliente (ya convertida a imagen PNG en base64). Va ANTES de completar el checklist: la cola respeta ese orden. */
+  async firmarChecklist(checklistId: number, nombre: string, imagen: string): Promise<Cambio> {
+    const quien = nombre.trim();
+    if (quien.length < 3) throw new Error('Escriba el nombre completo de quien firma.');
+    return this.poner({
+      titulo: `Firma de ${quien}`,
+      tipo: 'checklist_firma',
+      metodo: 'POST',
+      ruta: `/checklists/${checklistId}/firma`,
+      cuerpo: { nombre: quien, imagen },
+      dependeDe: await this.ultimoDelChecklist(checklistId),
+      contexto: { checklistId, nombre: quien },
+    });
+  }
+
+  /** Entregar el equipo (o cualquier cambio de estado de la orden). El servidor revisa que no queden trabajos ni checklists pendientes y, si no, lo rechaza con el motivo. */
+  entregarOrden(ordenId: number, estadoId: number, numero: string, estadoNombre: string): Promise<Cambio> {
+    return this.poner({ titulo: `Orden ${numero}: pasar a «${estadoNombre}»`, tipo: 'orden_estado', metodo: 'POST', ruta: `/ordenes/${ordenId}/estado`, cuerpo: { estado_id: estadoId }, contexto: { ordenId, estadoId } });
   }
 }

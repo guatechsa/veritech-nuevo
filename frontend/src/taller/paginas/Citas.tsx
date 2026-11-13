@@ -23,6 +23,8 @@ interface Cita {
   hora: string;
   horas_estimadas: number;
   estado: 'programada' | 'se_presento' | 'no_se_presento' | 'cancelada';
+  origen?: 'recepcion' | 'aviso' | 'portal';
+  por_confirmar?: number;
   notas: string | null;
   lectura_contador: number | null;
   motivo_cancelacion: string | null;
@@ -249,6 +251,15 @@ export default function Citas() {
       setError(mensajeDe(e, 'No se pudo marcar la cita'));
     }
   };
+  const confirmar = async (c: Cita): Promise<void> => {
+    setError('');
+    try {
+      await api.post(`/citas/${c.id}/confirmar`, {});
+      lista.recargar();
+    } catch (e) {
+      setError(mensajeDe(e, 'No se pudo confirmar la cita'));
+    }
+  };
   const porDia = new Map<string, Cita[]>();
   for (const c of lista.datos?.registros ?? []) porDia.set(c.fecha, [...(porDia.get(c.fecha) ?? []), c]);
 
@@ -286,10 +297,12 @@ export default function Citas() {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
+                    {c.por_confirmar === 1 && c.estado === 'programada' && <Badge variant="warning">Pedida desde el portal: por confirmar</Badge>}
                     <Badge variant={ESTADO[c.estado].variante}>{ESTADO[c.estado].texto}</Badge>
                     {c.orden_id && <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => navegar(`${base}/ordenes?orden=${c.orden_id}`)}>Ver orden</button>}
                     {gestionar && c.estado === 'programada' && (
                       <Acciones>
+                        {c.por_confirmar === 1 && <BotonAccion onClick={() => void confirmar(c)}>Confirmar</BotonAccion>}
                         {tiene('ordenes.crear') && <BotonAccion onClick={() => setVentana({ tipo: 'recibir', cita: c })}>Recibir</BotonAccion>}
                         <BotonAccion onClick={() => setVentana({ tipo: 'reprogramar', cita: c })}>Reprogramar</BotonAccion>
                         {c.ya_paso && <BotonAccion onClick={() => void noSePresento(c)}>No se presentó</BotonAccion>}

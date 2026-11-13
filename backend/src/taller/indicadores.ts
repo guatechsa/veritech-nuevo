@@ -65,7 +65,7 @@ export function semaforoDe(valor: number | null, m: Meta | undefined): Semaforo 
 const r2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 
-function validarPeriodo(f: Filtros): void {
+export function validarPeriodo(f: Filtros): void {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(f.desde) || !/^\d{4}-\d{2}-\d{2}$/.test(f.hasta)) throw new ErrorValidacion('Indique el periodo con fechas válidas');
   for (const x of [f.desde, f.hasta]) {
     const t = Date.parse(`${x}T00:00:00Z`);

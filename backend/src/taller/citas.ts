@@ -32,7 +32,12 @@ export interface DatosCitaNueva extends DatosCita {
   hora: string;
   origen?: 'recepcion' | 'aviso' | 'portal';
   servicio_programado_id?: number;
+  /** Una cita pedida desde el portal nace «por confirmar» y recuerda quién la pidió. */
+  portal?: { contactoId: number };
 }
+
+/** Quien hace el cambio: una persona del taller o, en el portal, el cliente (sin usuario). */
+export type ActorDeCita = Actor | { usuarioId: null; esSoporte: false; ip: string };
 
 const HORA = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -63,7 +68,7 @@ async function revisarHorario(ctx: Contexto, t: TallerReq, con: Ejecutor, d: { f
   return avisos;
 }
 
-const SELECT_CITA = `c.id, c.equipo_id, c.fecha_hora, c.horas_estimadas, c.estado, c.origen, c.notas, c.lectura_contador, c.llegada_en, c.sucursal_id, s.nombre AS sucursal, c.servicio_programado_id, sp.nombre AS servicio,
+const SELECT_CITA = `c.id, c.equipo_id, c.fecha_hora, c.horas_estimadas, c.estado, c.origen, c.por_confirmar, c.notas, c.lectura_contador, c.llegada_en, c.sucursal_id, s.nombre AS sucursal, c.servicio_programado_id, sp.nombre AS servicio,
   e.codigo_interno, e.placa, m.nombre AS marca, e.modelo, te.nombre AS tipo_equipo, cl.nombre AS cliente, mo.nombre AS motivo_cancelacion, c.motivo_cancelacion_texto,
   (SELECT o.id FROM ordenes o WHERE o.cita_id = c.id LIMIT 1) AS orden_id, (SELECT o.numero FROM ordenes o WHERE o.cita_id = c.id LIMIT 1) AS orden_numero`;
 const DE_CITA = `FROM citas c JOIN equipos e ON e.id = c.equipo_id JOIN tipos_equipo te ON te.id = e.tipo_equipo_id JOIN sucursales s ON s.id = c.sucursal_id LEFT JOIN marcas m ON m.id = e.marca_id
@@ -125,7 +130,7 @@ async function obtenerCita(ctx: Contexto, t: TallerReq, id: number) {
   return presentar(t, c, ahoraDe(ctx));
 }
 
-export async function crearCita(ctx: Contexto, t: TallerReq, actor: Actor, d: DatosCitaNueva) {
+export async function crearCita(ctx: Contexto, t: TallerReq, actor: ActorDeCita, d: DatosCitaNueva) {
   const notas = normalizarCampo('multilinea', d.notas);
   const horas = d.horas_estimadas ?? 1;
   if (!(horas >= 0.25 && horas <= 24)) throw new ErrorValidacion('Las horas estimadas deben estar entre 0.25 y 24');
@@ -145,8 +150,8 @@ export async function crearCita(ctx: Contexto, t: TallerReq, actor: Actor, d: Da
     const avisos = await revisarHorario(ctx, t, con, { fecha: d.fecha, hora: d.hora, sucursal_id: sucursalId, equipo_id: d.equipo_id }, null);
     const r = await ejecutar(
       con,
-      'INSERT INTO citas (equipo_id, cliente_id, sucursal_id, fecha_hora, horas_estimadas, origen, lectura_contador, notas, servicio_programado_id, creada_por_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [d.equipo_id, e.cliente_id, sucursalId, utcDeLocal(d.fecha, d.hora, t.empresa.zonaHoraria), horas, d.origen ?? 'recepcion', d.lectura_contador ?? null, notas, d.servicio_programado_id ?? null, actor.usuarioId]
+      'INSERT INTO citas (equipo_id, cliente_id, sucursal_id, fecha_hora, horas_estimadas, origen, por_confirmar, solicitada_por_contacto_id, lectura_contador, notas, servicio_programado_id, creada_por_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [d.equipo_id, e.cliente_id, sucursalId, utcDeLocal(d.fecha, d.hora, t.empresa.zonaHoraria), horas, d.origen ?? 'recepcion', d.portal ? 1 : 0, d.portal?.contactoId ?? null, d.lectura_contador ?? null, notas, d.servicio_programado_id ?? null, actor.usuarioId]
     );
     await bitacora(con, actor, { accion: 'cita_creada', entidad: 'citas', entidadId: r.insertId, despues: { ...d } });
     return { id: r.insertId, avisos };
@@ -231,4 +236,12 @@ export async function recibirCita(ctx: Contexto, t: TallerReq, actor: Actor, id:
   });
   const numero = (await una<{ numero: string }>(t.pool, 'SELECT numero FROM ordenes WHERE id = ?', [ordenId]))?.numero ?? '';
   return { ordenId, numero, cita: await obtenerCita(ctx, t, id) };
+}
+
+/** La recepción confirma una cita pedida desde el portal (o la cambia antes con «Cambiar»). */
+export async function confirmarCita(ctx: Contexto, t: TallerReq, actor: Actor, id: number) {
+  const r = await ejecutar(t.pool, "UPDATE citas SET por_confirmar = 0 WHERE id = ? AND estado = 'programada' AND por_confirmar = 1", [id]);
+  if (r.affectedRows === 0) throw new ErrorApp(409, 'REGLA', 'Esa cita no está por confirmar.');
+  await bitacora(t.pool, actor, { accion: 'cita_confirmada', entidad: 'citas', entidadId: id });
+  return obtenerCita(ctx, t, id);
 }

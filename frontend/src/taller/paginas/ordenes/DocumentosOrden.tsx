@@ -4,6 +4,7 @@ import Button from '../../../components/ui-guatech/Button.jsx';
 import { formatFechaHora } from '../../../components/ui-guatech/formatoFecha.js';
 import { Aviso, mensajeDe, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
+import { EnlacesOrden } from './EnlacesOrden';
 
 export interface DocumentoEmitido {
   id: number;
@@ -58,6 +59,7 @@ export function DocumentosOrden({ ordenId, puedeEmitir }: { ordenId: number; pue
   const docs = lista.datos ?? [];
   if (docs.length === 0 && !puedeEmitir) return null;
   return (
+    <div className="space-y-4">
     <section className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-gray-900">Cuenta en PDF</h3>
@@ -75,5 +77,7 @@ export function DocumentosOrden({ ordenId, puedeEmitir }: { ordenId: number; pue
         </ul>
       )}
     </section>
+    <EnlacesOrden ordenId={ordenId} />
+    </div>
   );
 }

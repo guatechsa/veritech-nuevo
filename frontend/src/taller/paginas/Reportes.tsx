@@ -3,20 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import Badge from '../../components/ui-guatech/Badge.jsx';
 import Button from '../../components/ui-guatech/Button.jsx';
 import Modal from '../../components/ui-guatech/Modal.jsx';
-import FechaInput from '../../components/ui-guatech/FechaInput';
 import Tabla, { Columna } from '../../admin/componentes/Tabla';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, Seccion, useLista } from '../componentes/ui';
 import { useSesionTaller } from '../Sesion';
 import { dineroDe } from './ordenes/tipos';
+import { EnviosProgramados } from './reportes/Envios';
+import { useFiltros } from './reportes/filtros';
+import { ReporteGenerico } from './reportes/Generico';
 import { COLOR_SEMAFORO, formatoValor, Indicador } from './reportes/tipos';
-
-const iso = (d: Date): string => {
-  const dos = (n: number): string => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
-};
-const hoy = (): Date => new Date();
-const primeroDelMes = (d: Date, desfase = 0): Date => new Date(d.getFullYear(), d.getMonth() + desfase, 1);
-const ultimoDelMes = (d: Date, desfase = 0): Date => new Date(d.getFullYear(), d.getMonth() + desfase + 1, 0);
 
 interface Rechazos {
   total_lineas: number;
@@ -25,32 +19,6 @@ interface Rechazos {
   por_tipo_equipo: Array<{ nombre: string; lineas: number; valor?: number }>;
   por_cliente: Array<{ nombre: string; lineas: number; valor?: number }>;
   por_item: Array<{ nombre: string; lineas: number; valor?: number }>;
-}
-
-// ── Filtros de periodo ────────────────────────────────────────────────────────────────
-function useFiltros() {
-  const { api } = useSesionTaller();
-  const [desde, setDesde] = useState(iso(primeroDelMes(hoy())));
-  const [hasta, setHasta] = useState(iso(hoy()));
-  const [sucursal, setSucursal] = useState('');
-  const [tipo, setTipo] = useState('');
-  const sucursales = useLista(() => api.get<Array<{ id: number; nombre: string }>>('/sucursales'), [api]);
-  const tipos = useLista(() => api.get<Array<{ id: number; nombre: string }>>('/tipos-equipo'), [api]);
-  const q = new URLSearchParams({ desde, hasta, ...(sucursal ? { sucursal_id: sucursal } : {}), ...(tipo ? { tipo_equipo_id: tipo } : {}) }).toString();
-  const barra = (
-    <div className="flex flex-wrap items-end gap-3">
-      <Campo etiqueta="Desde"><FechaInput value={desde} onChange={(e) => setDesde(e.target.value)} className={`${CLASE_INPUT} w-40`} /></Campo>
-      <Campo etiqueta="Hasta"><FechaInput value={hasta} onChange={(e) => setHasta(e.target.value)} className={`${CLASE_INPUT} w-40`} /></Campo>
-      <span className="flex gap-2 pb-1">
-        <Button size="sm" variant="outline" onClick={() => { setDesde(iso(primeroDelMes(hoy()))); setHasta(iso(hoy())); }}>Este mes</Button>
-        <Button size="sm" variant="outline" onClick={() => { setDesde(iso(primeroDelMes(hoy(), -1))); setHasta(iso(ultimoDelMes(hoy(), -1))); }}>Mes anterior</Button>
-        <Button size="sm" variant="outline" onClick={() => { setDesde(iso(new Date(Date.now() - 29 * 86400000))); setHasta(iso(hoy())); }}>Últimos 30 días</Button>
-      </span>
-      <Campo etiqueta="Sucursal"><select className={`${CLASE_INPUT} w-44`} value={sucursal} onChange={(e) => setSucursal(e.target.value)}><option value="">Todas</option>{(sucursales.datos ?? []).map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}</select></Campo>
-      <Campo etiqueta="Tipo de equipo"><select className={`${CLASE_INPUT} w-44`} value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">Todos</option>{(tipos.datos ?? []).map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}</select></Campo>
-    </div>
-  );
-  return { q, barra };
 }
 
 // ── Indicadores ───────────────────────────────────────────────────────────────────────
@@ -96,7 +64,7 @@ function Indicadores() {
   const { api, tiene, perfil } = useSesionTaller();
   const moneda = perfil?.empresa.moneda ?? 'GTQ';
   const [params] = useSearchParams();
-  const { q, barra } = useFiltros();
+  const { q, barra } = useFiltros('indicadores');
   const lista = useLista(() => api.get<Indicador[]>(`/indicadores?${q}`), [api, q]);
   const [meta, setMeta] = useState<Indicador | null>(null);
   const resaltado = params.get('indicador');
@@ -158,7 +126,7 @@ function ListaCorte({ titulo, filas, moneda, conDinero }: { titulo: string; fila
 function MotivosDeRechazo() {
   const { api, tiene, perfil } = useSesionTaller();
   const moneda = perfil?.empresa.moneda ?? 'GTQ';
-  const { q, barra } = useFiltros();
+  const { q, barra } = useFiltros('rechazos');
   const datos = useLista(() => api.get<Rechazos>(`/reportes/rechazos?${q}`), [api, q]);
   const conDinero = tiene('reportes.financieros');
   const d = datos.datos;
@@ -252,6 +220,9 @@ export default function Reportes() {
   const pestanas = [
     { k: 'indicadores', t: 'Indicadores', permiso: 'reportes.ver', vista: () => <Indicadores /> },
     { k: 'rechazos', t: 'Motivos de rechazo', permiso: 'reportes.ver', vista: () => <MotivosDeRechazo /> },
+    { k: 'carga', t: 'Carga de trabajo', permiso: 'reportes.ver', vista: () => <ReporteGenerico codigo="carga" titulo="Carga de trabajo" ayuda="Lo que hizo cada técnico en el periodo, lo que está pendiente hoy y las citas de los próximos 7 días." /> },
+    { k: 'compras', t: 'Compras', permiso: 'reportes.financieros', vista: () => <ReporteGenerico codigo="compras" titulo="Compras de material" ayuda="Lo comprado por proveedor y los materiales más comprados, por la fecha del documento." sinTipoDeEquipo /> },
+    { k: 'envios', t: 'Envíos programados', permiso: 'reportes.programar', vista: () => <EnviosProgramados /> },
     { k: 'tablero', t: 'Tablero por rol', permiso: 'reportes.configurar', vista: () => <TableroPorRol /> },
   ].filter((p) => tiene(p.permiso));
   const actual = pestanas.find((p) => p.k === params.get('tab')) ?? pestanas[0];

@@ -8,6 +8,7 @@ import { aHoraDeGuatemala } from '../utils/hora';
 import { APP_VERSION } from '../version';
 import { ErrorApi } from '../admin/api';
 import CampoContrasena, { contrasenaValida } from '../admin/componentes/CampoContrasena';
+import Buscador from './componentes/Buscador';
 import { useUbicacion } from './contexto';
 import { PerfilTaller, useSesionTaller } from './Sesion';
 
@@ -167,6 +168,7 @@ export default function LayoutTaller() {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3">
             <button className="lg:hidden" aria-label="Abrir menú" onClick={() => setAbierto(true)}><Menu size={22} /></button>
+            <div className="mx-2 min-w-0 flex-1 sm:max-w-sm"><Buscador /></div>
             <div className="ml-auto flex items-center gap-3 text-sm">
               <span className="hidden text-right sm:block">
                 <span className="block font-medium text-gray-900">{perfil.usuario.nombre}</span>

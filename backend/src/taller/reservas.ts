@@ -2,6 +2,7 @@ import { Ejecutor, ejecutar, filas, transaccion, una } from '../db/consulta';
 import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { normalizarCampo } from '../utils/texto';
+import { avisarMaterialCargado } from './avisos';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
 import { hoyDelTaller } from './contadores';
 import { bloquearOrdenAbierta } from './ordenes';
@@ -228,7 +229,7 @@ export async function cancelarReserva(ctx: Contexto, t: TallerReq, actor: Actor,
  */
 export async function cargarReserva(ctx: Contexto, t: TallerReq, actor: Actor, id: number) {
   const hoy = hoyDelTaller(ctx, t);
-  return transaccion(t.pool, async (con) => {
+  const resultado = await transaccion(t.pool, async (con) => {
     const r = await reservaParaCambiar(con, id);
     if (r.estado === 'cargada') throw new ErrorApp(409, 'REGLA', `La reserva ${r.numero} ya se cargó a la orden.`);
     if (r.estado === 'cancelada') throw new ErrorApp(409, 'REGLA', `La reserva ${r.numero} está cancelada.`);
@@ -266,6 +267,8 @@ export async function cargarReserva(ctx: Contexto, t: TallerReq, actor: Actor, i
     await bitacora(con, actor, { accion: 'reserva_cargada', entidad: 'reservas', entidadId: id, despues: { numero: r.numero, solicitud: sol.numero } });
     return { id, solicitud_id: sol.id };
   });
+  await avisarMaterialCargado(ctx, t, resultado.solicitud_id);
+  return resultado;
 }
 
 // ── Alertas ───────────────────────────────────────────────────────────────────────────

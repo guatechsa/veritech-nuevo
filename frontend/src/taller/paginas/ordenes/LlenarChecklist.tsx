@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUbicacion } from '../../contexto';
 import { DESENLACE, Desenlace } from '../cotizaciones/tipos';
 import { BotonPdf } from './DocumentosOrden';
+import { BotonEnlace } from './EnlacesOrden';
 import { FirmaPad } from './FirmaPad';
 
 export interface RespuestaChecklist {
@@ -227,7 +228,7 @@ export function LlenarChecklist({ id, alCerrar, alCambiar }: { id: number; alCer
               <span>Plantilla versión {c.version} · {c.respondidas} de {c.total} ítems respondidos</span>
               {c.estado === 'completado' ? <Badge variant="success">Completado{c.completado_en ? ` el ${formatFechaHora(c.completado_en)}` : ''}{c.completado_por ? ` por ${c.completado_por}` : ''}</Badge> : <Badge variant="warning">{c.estado === 'pendiente' ? 'Sin empezar' : 'En progreso'}</Badge>}
             </div>
-            {c.estado === 'completado' && tiene('documentos.emitir') && <div className="flex justify-end"><BotonPdf ruta={`/checklists/${c.id}/informe`} texto="Informe en PDF" /></div>}
+            {c.estado === 'completado' && tiene('documentos.emitir') && <div className="flex flex-wrap items-start justify-end gap-2"><BotonPdf ruta={`/checklists/${c.id}/informe`} texto="Informe en PDF" /><BotonEnlace ruta={`/checklists/${c.id}/enlace-informe`} texto="Enlace del informe" /></div>}
             {(hayRojos && tiene('cotizaciones.crear')) && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
                 <span>Este checklist tiene ítems en rojo. Se pueden cotizar: la cotización lleva los rojos con sus fotos y el cliente autoriza o rechaza cada línea.</span>

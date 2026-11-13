@@ -29,7 +29,7 @@ const fechaHora = (d: Date | null, zona: string): string | null => {
 };
 const fechaSola = (iso: string | null): string | null => (iso ? iso.split('-').reverse().join('/') : null);
 
-async function datosDeEmpresa(t: TallerReq): Promise<DatosEmpresa> {
+export async function datosDeEmpresa(t: TallerReq): Promise<DatosEmpresa> {
   const c = await leerConfiguracion(t);
   return { nombre: String(c['nombre_empresa'] || t.empresa.nombre), nit: String(c['nit_empresa'] ?? ''), direccion: String(c['direccion_empresa'] ?? ''), telefono: String(c['telefono_empresa'] ?? ''), correo: String(c['correo_empresa'] ?? '') };
 }

@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { ddmmaaaa, formatoCelda, ReporteArmado } from './reportes-tipos';
 
 /**
  * Armado de los PDF de los documentos emitidos (Fase 6c): cuenta, informe de checklist y cotización. Cada documento se arma a partir de su
@@ -100,7 +101,8 @@ class Hoja {
     for (const l of datos) d.text(l, MARGEN, d.y, { width: this.ancho * 0.6 });
     const yFin = d.y;
     d.font('Helvetica-Bold').fontSize(13).fillColor('#000000').text(this.titulo, MARGEN + this.ancho * 0.6, MARGEN, { width: this.ancho * 0.4, align: 'right' });
-    d.font('Helvetica').fontSize(9).fillColor(GRIS).text(`Folio ${this.meta.folio}${this.meta.version > 1 ? ` · versión ${this.meta.version}` : ''}`, MARGEN + this.ancho * 0.6, d.y, { width: this.ancho * 0.4, align: 'right' });
+    if (this.meta.folio) d.font('Helvetica').fontSize(9).fillColor(GRIS).text(`Folio ${this.meta.folio}${this.meta.version > 1 ? ` · versión ${this.meta.version}` : ''}`, MARGEN + this.ancho * 0.6, d.y, { width: this.ancho * 0.4, align: 'right' });
+    d.font('Helvetica').fontSize(9).fillColor(GRIS);
     d.text(`Emitido ${this.meta.emitido}`, MARGEN + this.ancho * 0.6, d.y, { width: this.ancho * 0.4, align: 'right' });
     d.y = Math.max(yFin, d.y) + 8;
     d.moveTo(MARGEN, d.y).lineTo(MARGEN + this.ancho, d.y).strokeColor(LINEA).stroke();
@@ -283,4 +285,28 @@ export async function pdfInforme(s: SnapInforme, m: MetaPdf, imagen: ProveedorDe
     await h.imagenes([s.firma.archivo_id], imagen, 90);
   }
   return h.terminar(AVISO);
+}
+
+/** Un reporte (Fase 7c): lleva el nombre del reporte, la empresa y cuándo se emitió, arriba y en el pie de cada página. No lleva folio. */
+export async function pdfReporte(r: ReporteArmado, empresa: DatosEmpresa, meta: Pick<MetaPdf, 'emitido' | 'emitidoPor'>, moneda: string): Promise<Buffer> {
+  const h = new Hoja(r.titulo, { folio: '', version: 1, emitido: meta.emitido, emitidoPor: meta.emitidoPor }, empresa);
+  h.encabezado();
+  h.datos([
+    ['Periodo', `${ddmmaaaa(r.desde)} al ${ddmmaaaa(r.hasta)}`],
+    ['Filtros', r.filtros.length > 0 ? r.filtros.join(' · ') : 'Ninguno'],
+    ['Emitido por', meta.emitidoPor],
+  ]);
+  for (const s of r.secciones) {
+    h.seccion(s.titulo);
+    if (s.filas.length === 0) {
+      h.parrafo('Sin datos en el periodo.', { color: GRIS });
+      continue;
+    }
+    const columnas = s.columnas.map((c, i) => ({ titulo: c.titulo, ancho: c.tipo === 'texto' ? (i === 0 ? 3 : 2) : 1.2, alinear: (c.tipo === 'texto' ? 'left' : 'right') as 'left' | 'right' }));
+    const cuerpo = s.filas.map((f) => s.columnas.map((c) => formatoCelda(moneda, c.tipo, f[c.clave] ?? null)));
+    if (s.total) cuerpo.push(s.columnas.map((c) => formatoCelda(moneda, c.tipo, s.total![c.clave])));
+    h.tabla(columnas, cuerpo);
+  }
+  for (const n of r.notas) h.parrafo(n, { color: GRIS, tam: 8 });
+  return h.terminar(`${r.titulo} · ${empresa.nombre || 'VERI-TECH'} · Emitido ${meta.emitido}`);
 }

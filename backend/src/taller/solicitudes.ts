@@ -5,6 +5,7 @@ import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { normalizarCampo } from '../utils/texto';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
 import { registrarUsoEnEquipo } from './aplicabilidad';
+import { avisarMaterialCargado, avisarSolicitudNueva } from './avisos';
 import { hoyDelTaller } from './contadores';
 import { aplicarMovimiento, ConfigPrecios, configDeInventario, margenDe, precioDe, Vista } from './inventario';
 import { bloquearOrdenAbierta, cargarMaterialEnOrden } from './ordenes';
@@ -38,7 +39,9 @@ export async function precioDeMaterial(con: Ejecutor, cfg: ConfigPrecios, materi
 
 // ── Pedir ─────────────────────────────────────────────────────────────────────────────
 export async function crearSolicitud(ctx: Contexto, t: TallerReq, actor: Actor, d: { orden_id: number; notas?: string | null; lineas: Array<{ material_id: number; cantidad: number }> }) {
-  return transaccion(t.pool, (con) => crearSolicitudEn(ctx, con, actor, d));
+  const r = await transaccion(t.pool, (con) => crearSolicitudEn(ctx, con, actor, d));
+  await avisarSolicitudNueva(ctx, t, r.id);
+  return r;
 }
 
 /** Pide los materiales dentro de una transacción que ya está abierta (lo usa también «Cargar a la orden» de una reserva). */
@@ -185,7 +188,9 @@ async function bodegaDeLaSucursal(con: Ejecutor, bodegaId: number, sucursalId: n
 export async function despachar(ctx: Contexto, t: TallerReq, actor: Actor, id: number, items: Array<{ linea_id: number; bodega_id: number; cantidad: number }>) {
   if (items.length === 0 || items.length > 100) throw new ErrorValidacion('Indique qué se despacha');
   for (const i of items) if (!Number.isInteger(i.cantidad) || i.cantidad <= 0) throw new ErrorValidacion('Las cantidades deben ser números enteros mayores que cero');
-  return transaccion(t.pool, (con) => despacharEn(ctx, t, con, actor, id, items));
+  const r = await transaccion(t.pool, (con) => despacharEn(ctx, t, con, actor, id, items));
+  await avisarMaterialCargado(ctx, t, id);
+  return r;
 }
 
 /** Despacha dentro de una transacción que ya está abierta (lo usa también «Cargar a la orden» de una reserva). */

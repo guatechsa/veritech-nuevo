@@ -16,6 +16,10 @@ import { montarRutasDocumentos } from './rutas-documentos';
 import { montarRutasInventario } from './rutas-inventario';
 import { montarRutasOrdenes } from './rutas-ordenes';
 import { montarRutasReservas } from './rutas-reservas';
+import { montarRutasAvisos } from './rutas-avisos';
+import { montarRutasEnlaces } from './rutas-enlaces';
+import { montarRutasInformes } from './rutas-informes';
+import { montarRutasPublicas } from './rutas-portal';
 import { montarRutasReportes } from './rutas-reportes';
 import { montarRutasSolicitudes } from './rutas-solicitudes';
 import { montarRutasServicios } from './rutas-servicios';
@@ -98,6 +102,8 @@ export function crearRutasTaller(ctx: Contexto): Router {
     res.json({ success: true, data: await responderPorEnlace(ctx, req.taller!, String(req.params['token']), { ip: ipDe(req), agente: req.get('user-agent') ?? '' }, d) });
   });
 
+  montarRutasPublicas(router, ctx, limitador(topePublico, 15), limitador(topeRecuperacion, 60), turnstile);
+
   // ── Todo lo demás exige sesión ────────────────────────────────────────────────────
   const requiereSesion = autenticarTaller(ctx);
   router.use(requiereSesion);
@@ -147,6 +153,9 @@ export function crearRutasTaller(ctx: Contexto): Router {
   montarRutasCotizaciones(router, ctx);
   montarRutasDocumentos(router, ctx);
   montarRutasReportes(router, ctx);
+  montarRutasAvisos(router, ctx);
+  montarRutasInformes(router, ctx);
+  montarRutasEnlaces(router, ctx);
 
   return router;
 }

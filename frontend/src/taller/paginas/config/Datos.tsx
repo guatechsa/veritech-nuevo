@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import Badge from '../../../components/ui-guatech/Badge.jsx';
 import Button from '../../../components/ui-guatech/Button.jsx';
 import Tabla, { Columna } from '../../../admin/componentes/Tabla';
+import { guardarComoArchivo } from '../../componentes/descarga';
 import { Aviso, mensajeDe, Seccion, useLista } from '../../componentes/ui';
 import { useSesionTaller } from '../../Sesion';
 
@@ -42,18 +43,6 @@ function resumenDeCreados(creados: Record<string, number>): string {
     .filter(([, n]) => n > 0)
     .map(([k, n]) => `${n} ${(NOMBRES_CREADOS[k] ?? [k, k])[n === 1 ? 0 : 1]}`);
   return partes.length > 0 ? partes.join(', ') : 'nada';
-}
-
-/** Entrega al navegador un archivo ya descargado (como si la persona hubiera pulsado «Guardar»). */
-function guardarComoArchivo(blob: Blob, nombre: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = nombre;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 function Descargar() {

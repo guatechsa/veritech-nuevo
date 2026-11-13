@@ -3,6 +3,7 @@ import { ErrorApp, ErrorNoEncontrado, ErrorValidacion } from '../errores';
 import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { normalizarCampo } from '../utils/texto';
 import { urlFirmada } from './archivos';
+import { avisarCotizacionRespondida, avisarSolicitudNueva } from './avisos';
 import { Actor, bitacora, siguienteNumero, TallerReq } from './comun';
 import { leerConfiguracion } from './configuracion';
 import { hoyDelTaller } from './contadores';
@@ -378,6 +379,7 @@ export async function responderLinea(ctx: Contexto, t: TallerReq, actor: Actor, 
     if (Number(pend?.n ?? 0) === 0) await ejecutar(con, "UPDATE cotizaciones SET estado = 'respondida' WHERE id = ?", [l.cotizacion_id]);
     await bitacora(con, actor, { accion: 'cotizacion_linea_respondida', entidad: 'cotizacion_lineas', entidadId: lineaId, despues: { decision: d.decision, motivo_id: motivoId } });
   });
+  await avisarCotizacionRespondida(ctx, t, cotId);
   return cotId;
 }
 
@@ -389,7 +391,7 @@ export async function responderLinea(ctx: Contexto, t: TallerReq, actor: Actor, 
 export async function agregarAOrden(ctx: Contexto, t: TallerReq, actor: Actor, id: number, d: { orden_id?: number | null }) {
   const cfg = await configDePrecios(t);
   const hoy = hoyDelTaller(ctx, t);
-  return transaccion(t.pool, async (con) => {
+  const resultado = await transaccion(t.pool, async (con) => {
     await marcarCotizacionesVencidas(con, hoy);
     const c = await cotCruda(con, id, true);
     if (!['enviada', 'respondida', 'vencida'].includes(c.estado)) throw new ErrorApp(409, 'REGLA', `La cotización ${c.numero} está ${c.estado}: solo se lleva a la orden lo autorizado de una cotización enviada.`);
@@ -429,6 +431,8 @@ export async function agregarAOrden(ctx: Contexto, t: TallerReq, actor: Actor, i
     await bitacora(con, actor, { accion: 'cotizacion_agregada_a_orden', entidad: 'cotizaciones', entidadId: id, despues: { numero: c.numero, orden: o.numero, lineas: lineas.length, solicitud: solicitud?.numero ?? null } });
     return { orden_id: ordenId, orden: o.numero, lineas: lineas.length, solicitud_id: solicitud?.id ?? null };
   });
+  if (resultado.solicitud_id) await avisarSolicitudNueva(ctx, t, resultado.solicitud_id);
+  return resultado;
 }
 
 // ── Consultar ─────────────────────────────────────────────────────────────────────────

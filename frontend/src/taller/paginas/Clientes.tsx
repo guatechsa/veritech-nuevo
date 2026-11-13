@@ -9,6 +9,7 @@ import { ErrorApi } from '../../admin/api';
 import { dinero } from '../../admin/tipos';
 import { CatalogoSimple } from '../componentes/CatalogoSimple';
 import { Aviso, Campo, CLASE_INPUT, mensajeDe, Seccion, useLista } from '../componentes/ui';
+import { PortalYAccesos } from './PortalYAccesos';
 import { useSesionTaller } from '../Sesion';
 
 interface FilaCliente {
@@ -237,7 +238,7 @@ function Contactos({ detalle, alCambiar }: { detalle: Detalle; alCambiar: () => 
 }
 
 // ── Ficha ────────────────────────────────────────────────────────────────────────────
-type PestanaFicha = 'datos' | 'departamentos' | 'contactos';
+type PestanaFicha = 'datos' | 'departamentos' | 'contactos' | 'portal';
 
 function Ficha({ inicial, alCerrar, alCambiar }: { inicial: number | 'nuevo'; alCerrar: () => void; alCambiar: () => void }) {
   const { api } = useSesionTaller();
@@ -254,7 +255,7 @@ function Ficha({ inicial, alCerrar, alCambiar }: { inicial: number | 'nuevo'; al
     else setDetalle(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-  const pestanas: Array<{ k: PestanaFicha; t: string }> = [{ k: 'datos', t: 'Datos' }, ...(id !== 'nuevo' ? [{ k: 'departamentos' as const, t: 'Departamentos' }, { k: 'contactos' as const, t: 'Contactos' }] : [])];
+  const pestanas: Array<{ k: PestanaFicha; t: string }> = [{ k: 'datos', t: 'Datos' }, ...(id !== 'nuevo' ? [{ k: 'departamentos' as const, t: 'Departamentos' }, { k: 'contactos' as const, t: 'Contactos' }, { k: 'portal' as const, t: 'Portal y accesos' }] : [])];
   return (
     <Modal onClose={alCerrar} title={id === 'nuevo' ? 'Nuevo cliente' : detalle ? detalle.nombre : 'Cliente'} size="xl">
       <div className="space-y-4">
@@ -275,6 +276,7 @@ function Ficha({ inicial, alCerrar, alCambiar }: { inicial: number | 'nuevo'; al
           />
         )}
         {detalle && pestana === 'departamentos' && <Departamentos detalle={detalle} alCambiar={() => { cargar(detalle.id); alCambiar(); }} />}
+        {detalle && pestana === 'portal' && <PortalYAccesos clienteId={detalle.id} />}
         {detalle && pestana === 'contactos' && <Contactos detalle={detalle} alCambiar={() => { cargar(detalle.id); alCambiar(); }} />}
       </div>
     </Modal>
@@ -284,8 +286,9 @@ function Ficha({ inicial, alCerrar, alCambiar }: { inicial: number | 'nuevo'; al
 // ── Lista de clientes ────────────────────────────────────────────────────────────────
 function ListaClientes() {
   const { api, tiene } = useSesionTaller();
-  const [buscar, setBuscar] = useState('');
-  const [estado, setEstado] = useState<'true' | 'false' | ''>('true');
+  const [urlParams] = useSearchParams();
+  const [buscar, setBuscar] = useState(urlParams.get('buscar') ?? '');
+  const [estado, setEstado] = useState<'true' | 'false' | ''>(urlParams.get('buscar') ? '' : 'true');
   const [pagina, setPagina] = useState(1);
   const params = new URLSearchParams({ pagina: String(pagina), ...(buscar.trim() ? { buscar: buscar.trim() } : {}), ...(estado ? { activo: estado } : {}) });
   const lista = useLista(() => api.get<{ total: number; porPagina: number; registros: FilaCliente[] }>(`/clientes?${params.toString()}`), [api, pagina, buscar, estado]);
@@ -349,7 +352,8 @@ interface Proveedor {
 
 function Proveedores() {
   const { api, tiene } = useSesionTaller();
-  const [buscar, setBuscar] = useState('');
+  const [params] = useSearchParams();
+  const [buscar, setBuscar] = useState(params.get('buscar') ?? '');
   const [pagina, setPagina] = useState(1);
   const lista = useLista(() => api.get<{ total: number; porPagina: number; registros: Proveedor[] }>(`/proveedores?pagina=${pagina}${buscar.trim() ? `&buscar=${encodeURIComponent(buscar.trim())}` : ''}`), [api, pagina, buscar]);
   const [editando, setEditando] = useState<Proveedor | 'nuevo' | null>(null);

@@ -60,7 +60,7 @@ const SUGERIDAS: Record<string, string[]> = {
 };
 
 // ── Lo que cuenta cada tarjeta ────────────────────────────────────────────────────────
-async function valorDeContador(ctx: Contexto, t: TallerReq, codigo: string, colaboradorId: number): Promise<number> {
+export async function valorDeContador(ctx: Contexto, t: TallerReq, codigo: string, colaboradorId: number): Promise<number> {
   const hoy = hoyDelTaller(ctx, t);
   const n = async (sql: string, params: unknown[] = []): Promise<number> => Number((await una<{ n: number }>(t.pool, sql, params))?.n ?? 0);
   const abiertas = 'FROM ordenes o JOIN estados_orden es ON es.id = o.estado_id WHERE es.es_terminal = 0';

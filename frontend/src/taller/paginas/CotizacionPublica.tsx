@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Button from '../../components/ui-guatech/Button.jsx';
 import { formatFecha, formatFechaHora } from '../../components/ui-guatech/formatoFecha.js';
@@ -21,7 +21,7 @@ interface PublicaLinea {
   respondida_en: string | null;
   respondida_por_nombre: string | null;
 }
-interface Publica {
+export interface Publica {
   disponible: boolean;
   moneda?: string;
   aviso?: string;
@@ -46,10 +46,7 @@ interface Publica {
 type Decision = 'autorizada' | 'rechazada' | '';
 
 /** Página que abre el cliente con el enlace de su cotización: sin iniciar sesión, pensada para el teléfono. */
-export default function CotizacionPublica() {
-  const { token = '' } = useParams();
-  const { slug } = useUbicacion();
-  const [api] = useState(() => crearApiTaller(slug));
+export function VistaCotizacion({ cargar, enviar: enviarRespuesta, pedirNombre = true, volver }: { cargar: () => Promise<Publica>; enviar: (cuerpo: { nombre: string; respuestas: Array<{ linea_id: number; decision: Decision; motivo_id: number | null; motivo_texto: string | null }> }) => Promise<Publica>; pedirNombre?: boolean; volver?: ReactNode }) {
   const [d, setD] = useState<Publica | null>(null);
   const [error, setError] = useState('');
   const [decisiones, setDecisiones] = useState<Record<number, { decision: Decision; motivo: string; detalle: string }>>({});
@@ -59,8 +56,8 @@ export default function CotizacionPublica() {
   const moneda = d?.moneda ?? 'GTQ';
 
   useEffect(() => {
-    api.get<Publica>(`/publico/cotizacion/${token}`).then(setD).catch((e: unknown) => setError(e instanceof ErrorApi ? e.message : 'No se pudo abrir la cotización. Intente de nuevo.'));
-  }, [api, token]);
+    cargar().then(setD).catch((e: unknown) => setError(e instanceof ErrorApi ? e.message : 'No se pudo abrir la cotización. Intente de nuevo.'));
+  }, [cargar]);
 
   const pendientes = (d?.lineas ?? []).filter((l) => l.estado === 'pendiente');
   const elegidas = pendientes.filter((l) => decisiones[l.id]?.decision);
@@ -70,7 +67,7 @@ export default function CotizacionPublica() {
     setError('');
     setEnviando(true);
     try {
-      const nuevo = await api.post<Publica>(`/publico/cotizacion/${token}/responder`, {
+      const nuevo = await enviarRespuesta({
         nombre,
         respuestas: elegidas.map((l) => ({ linea_id: l.id, decision: decisiones[l.id]!.decision, motivo_id: decisiones[l.id]!.decision === 'rechazada' ? Number(decisiones[l.id]!.motivo) : null, motivo_texto: decisiones[l.id]!.detalle.trim() || null })),
       });
@@ -87,6 +84,7 @@ export default function CotizacionPublica() {
   return (
     <div className="min-h-screen bg-gray-100 px-4 py-6">
       <main className="mx-auto max-w-2xl space-y-4">
+        {volver}
         {!d && !error && <p className="text-center text-sm text-gray-500">Cargando su cotización…</p>}
         {error && !d && <div className="rounded-lg bg-white p-6 text-center shadow"><h1 className="text-lg font-bold text-gray-900">Cotización</h1><p role="alert" className="mt-2 text-sm text-red-700">{error}</p></div>}
         {d && !d.disponible && <div className="rounded-lg bg-white p-6 text-center shadow"><p className="text-xs font-semibold uppercase text-gray-500">{d.empresa}</p><h1 className="text-lg font-bold text-gray-900">Cotización {d.numero}</h1><p className="mt-2 text-sm text-gray-700">{d.aviso}</p></div>}
@@ -166,10 +164,10 @@ export default function CotizacionPublica() {
 
               {d.se_puede_responder && (
                 <section className="space-y-3 rounded-lg bg-white p-5 shadow">
-                  <label className="block text-sm"><span className="mb-1 block font-medium text-gray-700">Su nombre completo</span><input className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" value={nombre} onChange={(e) => setNombre(e.target.value)} minLength={3} maxLength={100} required autoComplete="name" /></label>
+                  {pedirNombre && <label className="block text-sm"><span className="mb-1 block font-medium text-gray-700">Su nombre completo</span><input className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" value={nombre} onChange={(e) => setNombre(e.target.value)} minLength={3} maxLength={100} required autoComplete="name" /></label>}
                   <p className="text-xs text-gray-500">Al enviar, queda registrado su nombre, la fecha y hora y el dispositivo desde el que responde.</p>
                   {error && <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-                  <Button type="submit" disabled={enviando || elegidas.length === 0 || nombre.trim().length < 3}>{enviando ? 'Enviando…' : `Enviar mi respuesta (${elegidas.length} de ${pendientes.length})`}</Button>
+                  <Button type="submit" disabled={enviando || elegidas.length === 0 || (pedirNombre && nombre.trim().length < 3)}>{enviando ? 'Enviando…' : `Enviar mi respuesta (${elegidas.length} de ${pendientes.length})`}</Button>
                 </section>
               )}
               {listo && <p role="status" className="rounded-lg bg-green-50 p-4 text-sm text-green-800 shadow">Recibimos su respuesta. El taller la tiene registrada y se comunicará con usted.</p>}
@@ -179,4 +177,14 @@ export default function CotizacionPublica() {
       </main>
     </div>
   );
+}
+
+/** La cotización con el enlace que le mandó el taller (sin iniciar sesión). */
+export default function CotizacionPublica() {
+  const { token = '' } = useParams();
+  const { slug } = useUbicacion();
+  const api = useMemo(() => crearApiTaller(slug), [slug]);
+  const cargar = useCallback(() => api.get<Publica>(`/publico/cotizacion/${token}`), [api, token]);
+  const enviar = useCallback((cuerpo: unknown) => api.post<Publica>(`/publico/cotizacion/${token}/responder`, cuerpo), [api, token]);
+  return <VistaCotizacion cargar={cargar} enviar={enviar} />;
 }

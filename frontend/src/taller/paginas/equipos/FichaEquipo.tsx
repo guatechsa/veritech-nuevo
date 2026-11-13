@@ -7,6 +7,7 @@ import { useSesionTaller } from '../../Sesion';
 import { ServiciosEquipo } from '../servicios/ServiciosEquipo';
 import { ContadoresEquipo } from './ContadoresEquipo';
 import { DatosEquipo } from './DatosEquipo';
+import { QrEquipo } from './QrEquipo';
 import { DocumentosEquipo, FotosEquipo } from './FotosYDocumentos';
 import { NotasEquipo, PersonasEquipo } from './PersonasYNotas';
 import { AvisoEquipo, DetalleEquipo, ESTADO_EQUIPO } from './tipos';
@@ -50,6 +51,7 @@ export function FichaEquipo({ inicial, alCerrar, alCambiar, clienteInicial, pest
   const [avisos, setAvisos] = useState<AvisoEquipo[]>([]);
   const [error, setError] = useState('');
   const [cambiando, setCambiando] = useState<'activo' | 'fuera_de_servicio' | 'baja' | null>(null);
+  const [verQr, setVerQr] = useState(false);
 
   const cargar = (n: number): void => {
     api.get<DetalleEquipo>(`/equipos/${n}`).then((d) => { setDetalle(d); setError(''); }).catch((e: unknown) => setError(mensajeDe(e, 'No se pudo cargar el equipo')));
@@ -85,6 +87,9 @@ export function FichaEquipo({ inicial, alCerrar, alCambiar, clienteInicial, pest
               <span>{detalle.tipo_equipo}{detalle.cliente ? ` · ${detalle.cliente}` : ' · Del taller'}</span>
               {detalle.documentos_faltantes.length > 0 && <Badge variant="warning">Documentos pendientes</Badge>}
             </span>
+            <span className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setVerQr(true)}>Código QR</Button>
+            </span>
             {tiene('equipos.desactivar') && (
               <span className="flex gap-2">
                 {detalle.estado === 'activo' && <Button size="sm" variant="outline" onClick={() => setCambiando('fuera_de_servicio')}>Fuera de servicio</Button>}
@@ -119,6 +124,7 @@ export function FichaEquipo({ inicial, alCerrar, alCambiar, clienteInicial, pest
         {detalle && pestana === 'personas' && <PersonasEquipo equipo={detalle} alCambiar={refrescar} />}
       </div>
       {cambiando && detalle && <CambiarEstado equipo={detalle} nuevo={cambiando} alCerrar={() => setCambiando(null)} alListo={() => { setCambiando(null); refrescar(); }} />}
+      {verQr && id !== 'nuevo' && <QrEquipo equipoId={id} alCerrar={() => setVerQr(false)} />}
     </Modal>
   );
 }

@@ -30,6 +30,10 @@ export const TABLAS_NO_EXPORTADAS: Record<string, string> = {
   permisos: 'Lista fija de permisos que trae cada versión del sistema; no es información del taller.',
   migraciones_aplicadas: 'Control interno de las versiones de la base de datos.',
   secuencias: 'Contadores internos de numeración; el sistema nuevo los recalcula.',
+  vistas_guardadas: 'Preferencias personales de cada usuario (cómo le gusta ver cada reporte); no es información del taller.',
+  portal_codigos: 'Códigos de entrada al portal: son secretos de un solo uso.',
+  portal_sesiones: 'Sesiones abiertas del portal: son llaves de acceso y no tienen valor fuera del sistema.',
+  avisos_registro: 'Constancia técnica de los avisos ya enviados (evita avisar dos veces lo mismo); no es información del taller.',
   bitacora: 'PENDIENTE: puede ser enorme y no cabe en un libro de Excel; se descargará aparte en CSV.',
 };
 
@@ -384,6 +388,26 @@ export function hojasDeExportacion(): HojaExportada[] {
     {
       nombre: 'Tablero por rol',
       sql: `SELECT r.nombre AS "Rol", t.tarjeta AS "Tarjeta", t.orden AS "Orden" FROM tablero_roles t JOIN roles r ON r.id = t.rol_id ORDER BY r.id, t.orden`,
+    },
+    {
+      nombre: 'Accesos de clientes',
+      sql: `SELECT a.created_at AS "Fecha (UTC)", a.canal AS "Canal", a.tipo AS "Que vio", a.referencia AS "Referencia", cl.nombre AS "Cliente", co.nombre AS "Contacto", a.ip AS "Direccion de red", a.dispositivo AS "Dispositivo" FROM accesos_cliente a LEFT JOIN clientes cl ON cl.id = a.cliente_id LEFT JOIN contactos_cliente co ON co.id = a.contacto_id ORDER BY a.id`,
+    },
+    {
+      nombre: 'Avisos',
+      sql: `SELECT a.tipo_aviso AS "Aviso", ${SI_NO('a.activo')} AS "Encendido", a.umbral_dias AS "Días de anticipación", a.asunto AS "Asunto propio", a.cuerpo AS "Texto propio", ${SI_NO('a.incluir_contextual')} AS "También a la persona del hecho" FROM avisos_config a ORDER BY a.tipo_aviso`,
+    },
+    {
+      nombre: 'Destinatarios de avisos',
+      sql: `SELECT d.tipo_aviso AS "Aviso", r.nombre AS "Rol", c.nombre_completo AS "Persona", d.correo AS "Correo" FROM avisos_destinatarios d LEFT JOIN roles r ON r.id = d.rol_id LEFT JOIN usuarios u ON u.id = d.usuario_id LEFT JOIN colaboradores c ON c.id = u.colaborador_id ORDER BY d.tipo_aviso, d.id`,
+    },
+    {
+      nombre: 'Envios programados',
+      sql: `SELECT p.nombre AS "Nombre", p.reporte AS "Reporte", p.frecuencia AS "Frecuencia", p.dia_semana AS "Dia de la semana", p.dia_mes AS "Dia del mes", ${SI_NO('p.activo')} AS "Activo", p.filtros AS "Filtros", p.ultimo_envio_en AS "Ultimo envio (UTC)" FROM reportes_programados p ORDER BY p.nombre`,
+    },
+    {
+      nombre: 'Destinatarios de envios',
+      sql: `SELECT p.nombre AS "Envio", r.nombre AS "Rol", c.nombre_completo AS "Persona", d.correo AS "Correo" FROM reportes_programados_destinatarios d JOIN reportes_programados p ON p.id = d.reporte_programado_id LEFT JOIN roles r ON r.id = d.rol_id LEFT JOIN usuarios u ON u.id = d.usuario_id LEFT JOIN colaboradores c ON c.id = u.colaborador_id ORDER BY p.nombre, d.id`,
     },
     {
       nombre: 'Roles',

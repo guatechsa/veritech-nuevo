@@ -5,6 +5,7 @@ import { ahoraDe, Contexto } from '../plataforma/contexto';
 import { normalizarCampo } from '../utils/texto';
 import { urlFirmada } from './archivos';
 import { urlBaseDeTaller } from './auth';
+import { avisarCotizacionRespondida, avisarPrimeraApertura } from './avisos';
 import { Actor, bitacora, TallerReq } from './comun';
 import { leerConfiguracion } from './configuracion';
 import { hoyDelTaller } from './contadores';
@@ -17,9 +18,9 @@ import { hoyDelTaller } from './contadores';
  * costos, técnicos ni notas internas; y las vistas previas automáticas (WhatsApp, correo) no cuentan como «primera apertura».
  */
 
-const huellaDe = (token: string): string => createHash('sha256').update(token).digest('hex');
-const noDisponible = (): ErrorApp => new ErrorApp(404, 'ENLACE_NO_DISPONIBLE', 'Este enlace no está disponible: puede haber vencido o haber sido reemplazado. Pídale al taller uno nuevo.');
-const ROBOTS = /bot|crawler|spider|preview|whatsapp|facebookexternalhit|slackbot|telegrambot|skypeuripreview|googleimageproxy|linkedinbot|embedly|headless/i;
+export const huellaDe = (token: string): string => createHash('sha256').update(token).digest('hex');
+export const noDisponible = (): ErrorApp => new ErrorApp(404, 'ENLACE_NO_DISPONIBLE', 'Este enlace no está disponible: puede haber vencido o haber sido reemplazado. Pídale al taller uno nuevo.');
+export const ROBOTS = /bot|crawler|spider|preview|whatsapp|facebookexternalhit|slackbot|telegrambot|skypeuripreview|googleimageproxy|linkedinbot|embedly|headless/i;
 
 // ── Del lado del taller ───────────────────────────────────────────────────────────────
 export async function crearEnlaceCotizacion(ctx: Contexto, t: TallerReq, actor: Actor, cotizacionId: number) {
@@ -60,17 +61,19 @@ export async function listarEnlacesCotizacion(ctx: Contexto, t: TallerReq, cotiz
 interface EnlaceCrudo {
   id: number;
   entidad_id: number;
+  creado_por_id: number | null;
+  primera_apertura_en: Date | null;
 }
 
 async function enlaceValido(ctx: Contexto, t: TallerReq, token: string): Promise<EnlaceCrudo> {
   if (!/^[0-9a-f]{64}$/.test(token)) throw noDisponible();
-  const e = await una<EnlaceCrudo>(t.pool, "SELECT id, entidad_id FROM enlaces_publicos WHERE huella = ? AND tipo = 'cotizacion' AND revocado_en IS NULL AND vence_en > ?", [huellaDe(token), ahoraDe(ctx)]);
+  const e = await una<EnlaceCrudo>(t.pool, "SELECT id, entidad_id, creado_por_id, primera_apertura_en FROM enlaces_publicos WHERE huella = ? AND tipo = 'cotizacion' AND revocado_en IS NULL AND vence_en > ?", [huellaDe(token), ahoraDe(ctx)]);
   if (!e) throw noDisponible();
   return e;
 }
 
 /** Lo que el cliente puede ver: nada de costos, técnicos, usuarios ni notas internas. */
-async function cotizacionParaElCliente(ctx: Contexto, t: TallerReq, id: number) {
+export async function cotizacionParaElCliente(ctx: Contexto, t: TallerReq, id: number) {
   const hoy = hoyDelTaller(ctx, t);
   const c = await una<Record<string, unknown>>(
     t.pool,
@@ -124,18 +127,23 @@ export async function verCotizacionPublica(ctx: Contexto, t: TallerReq, token: s
   if (!ROBOTS.test(origen.agente)) {
     const ahora = ahoraDe(ctx);
     await ejecutar(t.pool, 'UPDATE enlaces_publicos SET aperturas = aperturas + 1, ultima_apertura_en = ?, primera_apertura_en = COALESCE(primera_apertura_en, ?), primera_apertura_ip = COALESCE(primera_apertura_ip, ?) WHERE id = ?', [ahora, ahora, origen.ip.slice(0, 64), e.id]);
+    if (e.primera_apertura_en === null) await avisarPrimeraApertura(ctx, t, e.id, e.entidad_id, e.creado_por_id);
   }
   return cotizacionParaElCliente(ctx, t, e.entidad_id);
 }
 
-export async function responderPorEnlace(
-  ctx: Contexto,
-  t: TallerReq,
-  token: string,
-  origen: { ip: string; agente: string },
-  d: { nombre: string; respuestas: Array<{ linea_id: number; decision: 'autorizada' | 'rechazada'; motivo_id?: number | null; motivo_texto?: string | null }> }
-) {
+type RespuestaDeLinea = { linea_id: number; decision: 'autorizada' | 'rechazada'; motivo_id?: number | null; motivo_texto?: string | null };
+
+export async function responderPorEnlace(ctx: Contexto, t: TallerReq, token: string, origen: { ip: string; agente: string }, d: { nombre: string; respuestas: RespuestaDeLinea[] }) {
   const e = await enlaceValido(ctx, t, token);
+  return responderComoCliente(ctx, t, { cotizacionId: e.entidad_id, enlaceId: e.id, nombre: d.nombre, origen, respuestas: d.respuestas });
+}
+
+/** Registra las respuestas de un cliente a las líneas de una cotización (por su enlace o desde el portal). */
+export async function responderComoCliente(ctx: Contexto, t: TallerReq, p: { cotizacionId: number; enlaceId: number | null; nombre: string; origen: { ip: string; agente: string }; respuestas: RespuestaDeLinea[] }) {
+  const e = { entidad_id: p.cotizacionId, id: p.enlaceId };
+  const origen = p.origen;
+  const d = { nombre: p.nombre, respuestas: p.respuestas };
   const nombre = normalizarCampo('texto', d.nombre);
   if (!nombre || nombre.length < 3) throw new ErrorValidacion('Escriba su nombre completo para registrar la respuesta');
   if (d.respuestas.length === 0) throw new ErrorValidacion('No hay ninguna respuesta que registrar');
@@ -169,5 +177,6 @@ export async function responderPorEnlace(
     if (Number(pend?.n ?? 0) === 0) await ejecutar(con, "UPDATE cotizaciones SET estado = 'respondida' WHERE id = ?", [e.entidad_id]);
     await bitacora(con, { usuarioId: null, ip: origen.ip }, { accion: 'cotizacion_respondida_por_enlace', entidad: 'cotizaciones', entidadId: e.entidad_id, despues: { numero: c.numero, nombre, lineas: d.respuestas.length } });
   });
+  await avisarCotizacionRespondida(ctx, t, e.entidad_id);
   return cotizacionParaElCliente(ctx, t, e.entidad_id);
 }

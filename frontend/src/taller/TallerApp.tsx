@@ -5,6 +5,9 @@ import { PaginaEntrarSoporte, PaginaIngresar, PaginaRecuperar, PaginaRestablecer
 import Citas from './paginas/Citas';
 import CotizacionPublica from './paginas/CotizacionPublica';
 import Cotizaciones from './paginas/Cotizaciones';
+import DocumentoPublico from './paginas/DocumentoPublico';
+import EquipoPublico from './paginas/EquipoPublico';
+import Portal from './paginas/Portal';
 import Clientes from './paginas/Clientes';
 import Configuracion from './paginas/Configuracion';
 import Equipos from './paginas/Equipos';
@@ -30,6 +33,9 @@ export default function TallerApp({ ubicacion }: { ubicacion: UbicacionTaller })
           <Route path="restablecer" element={<PaginaRestablecer />} />
           <Route path="entrar-soporte" element={<PaginaEntrarSoporte />} />
           <Route path="cotizacion/:token" element={<CotizacionPublica />} />
+          <Route path="documento/:token" element={<DocumentoPublico />} />
+          <Route path="equipo/:codigo" element={<EquipoPublico />} />
+          <Route path="portal" element={<Portal />} />
           <Route element={<LayoutTaller />}>
             <Route index element={<Inicio />} />
             <Route path="clientes" element={<Clientes />} />

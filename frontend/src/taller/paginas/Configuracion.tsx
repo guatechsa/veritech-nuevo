@@ -8,6 +8,7 @@ import Tabla, { Columna } from '../../admin/componentes/Tabla';
 import { dinero } from '../../admin/tipos';
 import { fechaHoraLocal } from '../../utils/hora';
 import { useSesionTaller } from '../Sesion';
+import Avisos from './config/Avisos';
 import { Colaboradores } from './config/Colaboradores';
 import { DatosDelTaller } from './config/Datos';
 import { CatalogosDeTrabajo } from './config/Catalogos';
@@ -173,6 +174,7 @@ const PESTANAS: Pestana[] = [
   { clave: 'catalogos', texto: 'Catálogos de trabajo', permiso: 'catalogos.ver', vista: () => <CatalogosDeTrabajo /> },
   { clave: 'datos', texto: 'Cargar y descargar datos', vista: () => <DatosDelTaller /> },
   { clave: 'checklists', texto: 'Checklists', permiso: 'checklists.ver', vista: () => <ChecklistsConfig /> },
+  { clave: 'avisos', texto: 'Avisos', permiso: 'configuracion.ver', vista: () => <Avisos /> },
   { clave: 'suscripcion', texto: 'Suscripción y pagos', permiso: 'suscripcion.ver', vista: () => <PestanaSuscripcion /> },
   { clave: 'bitacora', texto: 'Bitácora', permiso: 'bitacora.ver', vista: () => <Bitacora /> },
   { clave: 'cuenta', texto: 'Mi cuenta', vista: () => <PestanaCuenta /> },

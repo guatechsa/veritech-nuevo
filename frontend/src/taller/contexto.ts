@@ -52,10 +52,11 @@ export function guardarTokenTaller(slug: string, token: string | null): void {
 export const EVENTO_SESION_TALLER_VENCIDA = 'vt-sesion-taller-vencida';
 
 /** Cliente de la API del taller: pone la cabecera X-Taller y la sesión de ESTE taller. */
-export function crearApiTaller(slug: string) {
+export function crearApiTaller(slug: string, opciones: { token?: string | null } = {}) {
   /** `archivo`: una foto o un PDF para subir tal cual (el cuerpo crudo); el nombre viaja en la cabecera X-Nombre-Archivo. */
   async function llamar<T>(metodo: string, ruta: string, cuerpo?: unknown, archivo?: { blob: Blob; nombre: string }): Promise<T> {
-    const token = leerTokenTaller(slug);
+    // El portal del cliente usa su propia llave (opciones.token), nunca la sesión del personal del taller.
+    const token = "token" in opciones ? opciones.token ?? null : leerTokenTaller(slug);
     let respuesta: Response;
     try {
       respuesta = await fetch(`/api/taller${ruta}`, {

@@ -25,5 +25,6 @@ Reescritura completa de VERI-TECH. **Versión actual: 4.000** (en construcción)
 - Una prueba que nunca falló no demuestra nada: ante una regla crítica, comprobar que falla al quitar la protección (como se hizo con la zona horaria).
 
 ## Despliegue
-- Integración continua en `.github/workflows/ci.yml` (MariaDB 10.11). El despliegue se agrega con el sitio de pruebas.
+- Integración continua en `.github/workflows/ci.yml` (MariaDB 10.11: pruebas del servidor, de la app móvil y despliegue automático SOLO a `pruebas.veritech.lat`).
+- **Producción: `https://app.veritech.lat`** (dirección única `/t/<taller>`; en vivo desde 13/11/2026). Se despliega a mano con `bash scripts/desplegar-produccion.sh` (exige commit subido y en verde). Servidor: `/home/veritech/app`, pm2 `veritech-app` (puerto 4310), base `veritech_app_*`. Talleres iniciales: `enova` (cortesía) y `demo`. Guion completo y pendientes: `ANALISIS/22_SALIDA_Y_CAMBIO_DE_DIRECCION.md`. El sistema anterior (3.xxx, `C:GUATECHeritech`) sigue vivo y NO se toca; `cafe`/`waga` solo se retiran con orden explícita de Luis.
 - Apache sirve la SPA y solo proxya `/api` (estándar §15); `index.html` sin caché (§14).

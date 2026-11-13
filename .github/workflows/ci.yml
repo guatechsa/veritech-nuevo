@@ -62,11 +62,31 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+  # La app móvil: sus tipos y las pruebas de su núcleo (sesión, cola, envío, descarga del día, fotos). No necesita base de datos.
+  movil:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: App móvil - instalar
+        working-directory: mobile
+        run: npm ci
+      - name: App móvil - tipos
+        working-directory: mobile
+        run: npm run typecheck
+      - name: App móvil - pruebas del núcleo
+        working-directory: mobile
+        run: npm test
+
   # Despliegue al sitio de pruebas https://pruebas.veritech.lat. Compuerta: solo corre si "pruebas" pasó y solo en master.
   # La llave SSH solo puede ejecutar /root/scripts/veritech-nuevo-pruebas-deploy.sh en el servidor (comando forzado);
   # ese guion fijo recibe el paquete por la entrada estándar y no hace nada más.
   desplegar-pruebas:
-    needs: pruebas
+    needs: [pruebas, movil]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     concurrency:
